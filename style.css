@@ -1,0 +1,598 @@
+--- START OF FILE style.css ---
+
+/* =================================================================== */
+/* SI-PANDAI REFINED STYLESHEET                                        */
+/* =================================================================== */
+
+
+/* -------------------------------------- */
+/* --- GLOBAL STYLES & RESETS --- */
+/* -------------------------------------- */
+:root {
+  --sidebar-width: 260px;
+  --header-height: 60px;
+}
+
+body {
+  background-color: #f4f7f6;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  transition: background-color 0.3s ease;
+}
+
+/* --- KRITIS: SCALING SELURUH TAMPILAN APP (60%) --- */
+body:not(.login-view) {
+    transform: scale(0.6);
+    transform-origin: top left;
+    /* Menghitung ukuran body agar konten yang di-scale (0.6) mengisi viewport asli */
+    width: calc(100% / 0.6); 
+    min-height: calc(100vh / 0.6);
+    overflow: auto; /* Memungkinkan scrolling untuk konten asli */
+    position: absolute; /* Membantu positioning transform */
+}
+/* -------------------------------------- */
+/* --- LOGIN PAGE --- */
+/* -------------------------------------- */
+body.login-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #e0eafc, #cfdef3);
+}
+
+#login-page-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding: 1rem;
+}
+
+#login-page-wrapper .card {
+  border: none;
+  border-radius: 0.75rem;
+  background-color: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+}
+
+#login-page-wrapper .btn-primary {
+  padding: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+
+/* -------------------------------------- */
+/* --- MAIN APP LAYOUT --- */
+/* -------------------------------------- */
+#app-area {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.app-header {
+  height: var(--header-height);
+  background-color: #ffffff;
+  border-bottom: 1px solid #dee2e6;
+  padding: 0 1.5rem;
+  flex-shrink: 0;
+}
+
+.app-sidebar {
+  width: var(--sidebar-width);
+  height: calc(100vh - var(--header-height));
+  background-color: #2c3e50; /* Dark Blue/Gray */
+  padding: 1rem;
+  flex-shrink: 0;
+  transition: width 0.3s ease;
+  overflow-y: auto;
+}
+
+.app-content {
+  flex-grow: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+  height: calc(100vh - var(--header-height));
+}
+
+
+/* -------------------------------------- */
+/* --- SIDEBAR NAVIGATION --- */
+/* -------------------------------------- */
+.app-sidebar .nav-link {
+  color: #bdc3c7; /* Lighter gray for text */
+  padding: 0.8rem 1rem;
+  margin-bottom: 0.25rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s ease-in-out;
+  display: flex;
+  align-items: center;
+}
+
+.app-sidebar .nav-link i {
+  margin-right: 0.85rem;
+  width: 20px;
+  font-size: 1.15em;
+  opacity: 0.8;
+  transition: all 0.2s ease-in-out;
+}
+
+.app-sidebar .nav-link:hover {
+  background-color: #34495e; /* Slightly lighter dark blue */
+  color: #ffffff;
+  transform: translateX(5px);
+}
+
+.app-sidebar .nav-link.active {
+  background-color: #3498db; /* Bright Blue */
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+}
+
+.app-sidebar .nav-link.active i {
+  opacity: 1;
+}
+
+
+/* -------------------------------------- */
+/* --- GENERAL COMPONENTS & UTILITIES --- */
+/* -------------------------------------- */
+.card {
+  border: 1px solid #e9ecef;
+  border-radius: 0.75rem;
+  transition: box-shadow 0.3s ease, transform 0.2s ease;
+}
+
+.card .card-header {
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  font-weight: 600;
+}
+
+.filter-bar, .summary-bar, .bulk-action-bar {
+  background-color: #ffffff;
+  border: 1px solid #dee2e6;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.bulk-action-bar {
+  background-color: #e3f2fd;
+  border-color: #90caf9;
+  display: none; /* Initially hidden */
+}
+
+.status-badge {
+  font-size: 0.8em;
+  padding: 0.4em 0.8em;
+  font-weight: 600;
+  border-radius: 20px;
+  min-width: 110px;
+  display: inline-block;
+  text-align: center;
+  border: 1px solid transparent;
+}
+
+.status-menunggu-review { background-color: #fff3cd; color: #664d03; border-color: #ffc107; }
+.status-diterima { background-color: #d1e7dd; color: #0f5132; border-color: #198754; }
+.status-ditolak { background-color: #f8d7da; color: #58151c; border-color: #dc3545; }
+.status-revisi { background-color: #fff3cd; color: #664d03; border-color: #ffc107; }
+.status-diblokir { background-color: #e2e3e5; color: #41464b; border-color: #6c757d; }
+
+
+#loading-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(5px);
+  z-index: 9999;
+  display: none;
+  flex-direction: column;
+  justify-content: center; align-items: center;
+  color: white;
+}
+
+
+/* -------------------------------------- */
+/* --- DASHBOARD STYLING --- */
+/* -------------------------------------- */
+#dashboard-total-pagu-card, #card-diajukan, #card-diterima, #card-rpd-realisasi {
+  transition: all 0.2s ease-in-out;
+}
+#dashboard-total-pagu-card:hover, #card-diajukan:hover, #card-diterima:hover, #card-rpd-realisasi:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+
+.card-status .card-body {
+  padding: 1rem 0.5rem;
+}
+
+/* Unit Dashboard Cards (using the original class name for compatibility) */
+.card-prodi-status {
+  padding: 1rem;
+  color: #fff;
+  border: none;
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.card-prodi-status:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+/* --- WARNA KHUSUS UNIT/PRODI (30 WARNA UNIK) --- */
+/* Pastikan warna latar belakang cukup gelap/jenuh agar teks putih (#fff) terbaca */
+.unit-color-1 { background-color: #3498db; } /* Bright Blue */
+.unit-color-2 { background-color: #2980b9; } /* Darker Blue */
+.unit-color-3 { background-color: #1abc9c; } /* Turquoise */
+.unit-color-4 { background-color: #16a085; } /* Darker Green/Cyan */
+.unit-color-5 { background-color: #2ecc71; } /* Emerald Green */
+.unit-color-6 { background-color: #27ae60; } /* Dark Green */
+.unit-color-7 { background-color: #9b59b6; } /* Amethyst Purple */
+.unit-color-8 { background-color: #8e44ad; } /* Wisteria Purple */
+.unit-color-9 { background-color: #3f51b5; } /* Indigo */
+.unit-color-10 { background-color: #5e35b1; } /* Deep Purple */
+.unit-color-11 { background-color: #f39c12; } /* Darker Yellow/Gold */
+.unit-color-12 { background-color: #e67e22; } /* Carrot Orange */
+.unit-color-13 { background-color: #d35400; } /* Pumpkin Orange */
+.unit-color-14 { background-color: #e74c3c; } /* Alizarin Red */
+.unit-color-15 { background-color: #c0392b; } /* Pomegranate Red */
+.unit-color-16 { background-color: #ec407a; } /* Pink/Maroon */
+.unit-color-17 { background-color: #795548; } /* Brown */
+.unit-color-18 { background-color: #607d8b; } /* Blue Gray */
+.unit-color-19 { background-color: #455a64; } /* Dark Slate Gray */
+.unit-color-20 { background-color: #2c3e50; } /* Primary Dark Blue/Gray */
+.unit-color-21 { background-color: #00bcd4; } /* Cyan */
+.unit-color-22 { background-color: #03a9f4; } /* Light Blue */
+.unit-color-23 { background-color: #4caf50; } /* Moderate Green */
+.unit-color-24 { background-color: #689f38; } /* Darker Lime Green */
+.unit-color-25 { background-color: #d32f2f; } /* Deep Red */
+.unit-color-26 { background-color: #fb8c00; } /* Darker Amber */
+.unit-color-27 { background-color: #00897b; } /* Teal */
+.unit-color-28 { background-color: #3e2723; } /* Dark Brown/Coffee */
+.unit-color-29 { background-color: #4a148c; } /* Deep Indigo */
+.unit-color-30 { background-color: #006064; } /* Dark Teal/Cyan */
+/* -------------------------------------- */
+
+.card-prodi-status h6 {
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-prodi-status .metric-value {
+  font-size: 1.2rem;
+  font-weight: bold;
+  line-height: 1.2;
+}
+.card-prodi-status .sub-metric {
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+
+/* -------------------------------------- */
+/* --- TABLE STYLING --- */
+/* -------------------------------------- */
+.table-responsive {
+  background-color: #fff;
+  border-radius: 0.5rem;
+  border: 1px solid #dee2e6;
+  overflow: auto; /* Ensure scroll if content overflows, especially for wide tables */
+}
+
+.table {
+  margin-bottom: 0;
+  font-size: 0.875rem;
+}
+
+.table th {
+  font-weight: 600;
+  background-color: #f8f9fa;
+}
+
+.table td, .table th {
+  vertical-align: middle;
+}
+
+/* Hierarchical Grouping Headers */
+.group-header-grub td {
+  background-color: #34495e !important; /* Dark Blue/Gray */
+  color: #fff !important;
+  font-size: 1.05em;
+  font-weight: 700 !important;
+  border-top: 2px solid #fff;
+  border-bottom: 1px solid #4e6074;
+}
+
+.group-header-kelompok td {
+  background-color: #7f8c8d !important; /* Gray */
+  color: #fff !important;
+  font-size: 0.95em;
+  padding-left: 2.5rem !important;
+  font-weight: 600 !important;
+}
+
+.group-header-kegiatan td {
+  background-color: #ecf0f1 !important; /* Light Gray */
+  color: #34495e;
+  font-style: italic;
+  padding-left: 4rem !important;
+  border-bottom: 1px solid #bdc3c7;
+}
+
+.prodi-indicator {
+    border-left: 5px solid transparent;
+}
+.blocked-row {
+  background-color: #f8f9fa;
+  opacity: 0.6;
+}
+.blocked-row:hover {
+  opacity: 1;
+}
+
+/* Print/PDF specific table enhancements */
+/* For wide tables like RPD/Realisasi */
+#tableAjuanAwal table,
+#tableAjuanPerubahan table,
+#tableRPDAwal table,
+#tableRPDPerubahan table,
+#tableRealisasiAwal table,
+#tableRealisasiPerubahan table,
+#tableLogAktivitas table {
+    /* Ensure table spans container width but adjusts column sizes */
+    width: 100% !important; 
+    table-layout: auto;
+}
+
+/* For RPD/Realisasi input fields */
+.rpd-input, .realisasi-input {
+    width: 100%;
+    text-align: right;
+    font-size: 0.8rem;
+    padding: 0.1rem 0.3rem;
+    height: 1.7rem;
+}
+
+/* Animation for saved rows */
+.row-saved-animation {
+    animation: flash-success 1.5s ease-in-out;
+}
+
+@keyframes flash-success {
+    0% { background-color: #d1e7dd; }
+    50% { background-color: #d1e7dd; }
+    100% { background-color: initial; }
+}
+
+
+/* -------------------------------------- */
+/* --- MODAL & COMMENT STYLING --- */
+/* -------------------------------------- */
+.komentar-container {
+  max-height: 400px;
+  overflow-y: auto;
+  background-color: #f8f9fa;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.comment-bubble {
+  padding: 0.6rem 1rem;
+  border-radius: 18px;
+  max-width: 85%;
+  word-wrap: break-word;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.comment-bubble-user {
+  background-color: #3498db;
+  color: white;
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+}
+
+.comment-bubble-other {
+  background-color: #e9ecef;
+  color: #212529;
+  align-self: flex-start;
+  border-bottom-left-radius: 4px;
+}
+
+.comment-bubble .author {
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 2px;
+  color: #ecf0f1;
+}
+.comment-bubble-other .author {
+  color: #495057;
+}
+
+.comment-bubble .timestamp {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 5px;
+  text-align: right;
+  display: block;
+}
+.comment-bubble-other .timestamp {
+  color: #6c757d;
+}
+
+.comment-btn-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.comment-notification-dot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  background-color: #e74c3c;
+  border-radius: 50%;
+  border: 1px solid white;
+}
+.history-log-item {
+  padding: 0.75rem;
+  border-bottom: 1px solid #e9ecef;
+}
+.history-log-item:last-child {
+  border-bottom: none;
+}
+/* -------------------------------------- */
+/* --- BERITA ACARA (PRINT VIEW) --- */
+/* -------------------------------------- */
+#berita-acara-content { font-family: 'Times New Roman', Times, serif; color: #000; min-height: 800px; }
+.ba-kop { text-align: center; border-bottom: 3px solid #000; padding-bottom: 15px; margin-bottom: 30px; }
+.ba-kop img { width: 90px; height: auto; }
+.ba-kop-text { display: inline-block; vertical-align: middle; margin-left: 20px; text-align: center; }
+.ba-kop-text h5 { margin: 0; line-height: 1.2; font-weight: bold; font-size: 1.15rem; }
+.ba-kop-text p { margin: 2px 0 0 0; line-height: 1.2; font-weight: normal; font-size: 0.9rem; }
+.ba-judul { text-align: center; margin: 30px 0; }
+.ba-judul h5 { text-decoration: underline; margin: 0 0 5px 0; font-weight: bold; }
+.ba-judul p { margin: 0; }
+.ba-paragraf { text-align: justify; margin: 20px 0; line-height: 1.6; }
+.ba-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 10pt; }
+.ba-table th, .ba-table td { border: 1px solid #000; padding: 6px 8px; vertical-align: top; }
+.ba-table thead th { background-color: #e9ecef; text-align: center; font-weight: bold; }
+.ba-table tbody td:nth-child(n+4) { text-align: right; } /* Align numbers right */
+.ba-signatures { margin-top: 50px; page-break-inside: avoid; }
+.ba-signatures table { width: 100%; border: none; }
+.ba-signatures td { vertical-align: top; text-align: center; padding: 10px; width: 50%; }
+
+/* BA Perubahan comparison table */
+.ba-comparison-table th { background-color: #f0f8ff !important; }
+.ba-comparison-table .bg-light-subtle { background-color: #f7f9fc !important; }
+.ba-comparison-table tr:nth-child(odd) { background-color: #fff !important; }
+.ba-comparison-table tr:nth-child(even) td:nth-child(-n+5) { border-top: 2px solid #ccc; }
+.ba-comparison-table tr:nth-child(odd) td:nth-child(-n+5) { border-bottom: none; }
+.ba-comparison-table tr:last-child td { border-bottom: 1px solid #000 !important; }
+.ba-comparison-table td { padding: 4px 6px; font-size: 9pt; }
+
+
+@media print {
+  body {
+    background-color: #fff;
+    font-size: 10pt; /* Default print font size */
+    transform: none !important; /* Disable scale for actual printing */
+    width: auto !important;
+    height: auto !important;
+    min-height: auto !important;
+    position: static !important;
+  }
+  .app-header, .app-sidebar, .d-print-none {
+    display: none !important;
+  }
+  .app-content, #app-area, body {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+  }
+  .tab-pane.fade {
+      opacity: 1;
+      display: none !important;
+  }
+  /* Only show the active tab content */
+  .tab-pane.fade.active.show {
+      display: block !important;
+  }
+  .card {
+    box-shadow: none !important;
+    border: none !important; /* Hide card borders in print */
+  }
+
+  /* General Table Print Styling */
+  .table-responsive {
+      overflow: visible !important; /* Prevent cutoff/scroll */
+      border: none !important;
+      padding: 0 !important;
+  }
+  .table {
+      width: 100% !important;
+      max-width: 100% !important;
+      table-layout: auto !important;
+      border-collapse: collapse;
+      page-break-inside: auto;
+  }
+  .table thead {
+      display: table-header-group;
+  }
+  .table tr {
+      page-break-inside: avoid;
+      page-break-after: auto;
+  }
+  .table thead th {
+      background-color: #e9ecef !important; 
+      -webkit-print-color-adjust: exact; 
+      color: #000 !important;
+      font-size: 9pt !important;
+      border: 1px solid #000 !important;
+  }
+  .table td, .table th {
+      border: 1px solid #000;
+      padding: 4px 6px;
+      font-size: 9pt;
+      vertical-align: top; /* Important for multi-line content */
+  }
+  
+  /* Remove visual indicators for print */
+  .prodi-indicator { border-left: none !important; }
+
+  /* Ensure background colors print for groups/striped rows */
+  .group-header-grub td, .group-header-kelompok td, .group-header-kegiatan td, .table tbody tr:nth-child(odd) {
+      -webkit-print-color-adjust: exact;
+      color: #000 !important; /* Ensure text visibility */
+  }
+  
+  .group-header-grub td { background-color: #ccccff !important; border-top: 1px solid #000 !important; border-bottom: 1px solid #000 !important; }
+  .group-header-kelompok td { background-color: #e0e0e0 !important; border-top: 1px solid #000 !important; border-bottom: 1px solid #000 !important; }
+  .group-header-kegiatan td { background-color: #f0f0f0 !important; border-top: 1px solid #000 !important; border-bottom: 1px solid #000 !important; }
+
+
+  /* Hide unnecessary controls in RPD/Realisasi */
+  .rpd-input, .realisasi-input {
+      border: none !important;
+      background: none !important;
+      text-align: right;
+      font-size: 9pt !important;
+      padding: 0 !important;
+  }
+  .action-buttons { 
+    display: none !important; 
+  }
+  
+  /* BA Specific Adjustments for print */
+  #berita-acara-content {
+      padding: 0; 
+      margin: 0;
+  }
+  .ba-kop table { table-layout: fixed; }
+  .ba-kop-text { width: calc(100% - 130px); }
+  .ba-table { font-size: 9pt; }
+  .ba-table th, .ba-table td { padding: 4px; }
+}

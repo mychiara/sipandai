@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Si-Pandai: Sistem Informasi Perencanaan Anggaran dan Keuangan</title>
+  
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+
+  <!-- FIREBASE SCRIPTS (KEPT) -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  
+  <!-- SUPABASE CLIENT SCRIPT (NEW) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script> 
+  
+  <!-- OTHER LIBS -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body class="login-view">
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Memuat...</span>
+    </div>
+    <span class="mt-2 text-white">Memuat Data...</span>
+  </div>
+  
+  <!-- Toast Container -->
+  <div class="toast-container position-fixed top-0 end-0 p-3"></div>
+
+  <!-- Login Page -->
+  <div id="login-page-wrapper">
+    <div class="card shadow-lg" style="width: 100%; max-width: 400px;">
+      <div class="card-body p-4">
+        <div class="text-center mb-4">
+          <img src="https://si-pandai.netlify.app/LOGO%20POLTEKKES%20KEMENKES%20KUPANG.png" alt="Logo" width="90">
+          <h3 class="mt-3">SI-PANDAI</h3>
+          <p class="text-muted">Sistem Informasi Perencanaan Anggaran</p>
+        </div>
+        <div class="mb-3">
+          <label for="input-user-id" class="form-label">Email</label>
+          <input type="email" class="form-control" id="input-user-id" placeholder="Masukkan Email Anda">
+        </div>
+        <div class="mb-3">
+          <label for="input-password" class="form-label">Password</label>
+          <input type="password" class="form-control" id="input-password" placeholder="Masukkan Password">
+        </div>
+        <div class="d-grid">
+          <button class="btn btn-primary" id="btn-login">Login</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main App Area -->
+  <div id="app-area" style="display: none;">
+    <header class="app-header shadow-sm">
+      <div class="container-fluid d-flex justify-content-between align-items-center">
+        <h4 class="mb-0">
+          <img src="https://si-pandai.netlify.app/LOGO%20POLTEKKES%20KEMENKES%20KUPANG.png" alt="Logo" style="height: 35px; margin-right: 10px;">
+          SI-PANDAI
+        </h4>
+        <div class="d-flex align-items-center">
+            <div id="welcome" class="me-3 small"></div>
+
+            <div class="dropdown me-3" id="notification-bell">
+                <button class="btn btn-outline-secondary btn-sm position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-bell-fill"></i>
+                    <span id="notification-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display: none;"></span>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end" style="width: 350px;">
+                    <h6 class="dropdown-header">Notifikasi</h6>
+                    <div id="notification-items-container" class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
+                        <!-- Notifications will be rendered here -->
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-outline-danger btn-sm" id="btn-logout"><i class="bi bi-box-arrow-right"></i> Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="d-flex">
+      <nav class="app-sidebar">
+        <ul class="nav nav-pills flex-column">
+          <!-- Default active tab: Dashboard -->
+          <li class="nav-item"><a class="nav-link active" id="tab-dashboard-link" data-bs-toggle="tab" href="#tab-dashboard"><i class="bi bi-grid-1x2-fill"></i> Dashboard</a></li>
+          
+          <li class="nav-item" id="nav-item-ajuan-awal"><a class="nav-link" id="link-ajuan-awal" data-bs-toggle="tab" href="#tab-form-ajuan"><i class="bi bi-file-earmark-plus"></i> Buat Ajuan Awal</a></li>
+          <li class="nav-item" id="nav-item-ajuan-perubahan" style="display: none;"><a class="nav-link" id="link-ajuan-perubahan" data-bs-toggle="tab" href="#tab-form-ajuan"><i class="bi bi-pencil-square"></i> Buat Ajuan Perubahan</a></li>
+          
+          <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-daftar-awal"><i class="bi bi-list-check"></i> Daftar Ajuan Awal</a></li>
+          <li class="nav-item" id="nav-item-daftar-perubahan" style="display: none;"><a class="nav-link" id="link-daftar-perubahan" data-bs-toggle="tab" href="#tab-daftar-perubahan"><i class="bi bi-list-check"></i> Daftar Ajuan Perubahan</a></li>
+
+          <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-rpd-awal"><i class="bi bi-calendar2-event"></i> RPD Awal</a></li>
+          <li class="nav-item" id="nav-item-rpd-perubahan" style="display: none;"><a class="nav-link" id="link-rpd-perubahan" data-bs-toggle="tab" href="#tab-rpd-perubahan"><i class="bi bi-calendar2-event"></i> RPD Perubahan</a></li>
+
+          <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-realisasi-awal"><i class="bi bi-graph-up-arrow"></i> Realisasi Awal</a></li>
+          <li class="nav-item" id="nav-item-realisasi-perubahan" style="display: none;"><a class="nav-link" id="link-realisasi-perubahan" data-bs-toggle="tab" href="#tab-realisasi-perubahan"><i class="bi bi-graph-up-arrow"></i> Realisasi Perubahan</a></li>
+          
+          <li class="nav-item">
+  <a class="nav-link" data-bs-toggle="tab" href="#tab-berita-acara">
+    <i class="bi bi-printer-fill"></i> Berita Acara
+  </a>
+</li>
+
+<li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-matrix-semula-menjadi">
+        <i class="bi bi-table"></i> Matrix Semula – Menjadi
+    </a>
+</li>
+
+
+  
+          <li class="nav-item" id="tab-pengaturan-akun-link" style="display: none;"><a class="nav-link" data-bs-toggle="tab" href="#tab-pengaturan-akun"><i class="bi bi-person-gear"></i> Pengaturan Akun</a></li>
+
+          <li class="nav-item mt-auto" id="tab-log-link" style="display: none;"><a class="nav-link" data-bs-toggle="tab" href="#tab-log"><i class="bi bi-card-list"></i> Log Aktivitas</a></li>
+          <li class="nav-item" id="tab-manage-link" style="display: none;"><a class="nav-link" data-bs-toggle="tab" href="#tab-manage"><i class="bi bi-gear-fill"></i> Pengaturan</a></li>
+        </ul>
+      </nav>
+
+      <main class="app-content">
+        <div class="tab-content">
+            <!-- TAB: Matrix Semula – Menjadi -->
+<div class="tab-pane fade" id="tab-matrix-semula-menjadi">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+      <h4><i class="bi bi-table"></i> Matrix Semula – Menjadi</h4>
+      <button class="btn btn-sm btn-outline-primary" id="btn-refresh-matrix">
+          <i class="bi bi-arrow-clockwise"></i> Refresh
+      </button>
+  </div>
+
+  <!-- Loader (WAJIB ADA sesuai script.js) -->
+  <div id="matrix-loading"
+       style="display:none; text-align:center; padding:20px;">
+      <div class="spinner-border text-primary"></div>
+      <p class="mt-2">Memuat data Matrix...</p>
+  </div>
+
+  <!-- Tabel Matrix -->
+  <div class="table-responsive">
+      <table class="table table-bordered table-striped mt-3">
+          <thead class="table-light">
+              <tr>
+                  <th>No</th>
+                  <th>ID Prodi</th>
+                  <th>Nama Ajuan</th>
+                  <th>Semula</th>
+                  <th>Menjadi</th>
+                  <th>Selisih</th>
+              </tr>
+          </thead>
+          <tbody id="matrixBody"></tbody>
+      </table>
+  </div>
+</div>
+          
+          <!-- TAB: Dashboard (Marked as active tab content) -->
+          <div class="tab-pane fade show active" id="tab-dashboard">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h4><i class="bi bi-grid-1x2-fill"></i> Dashboard</h4>
+                <div>
+                  <select id="filterTahunDashboard" class="form-select form-select-sm d-inline-block me-2" style="width: auto;"></select>
+                  <select id="filterTipeDashboard" class="form-select form-select-sm d-inline-block me-2" style="width: auto;">
+                    <option value="">Semua Tipe Ajuan</option>
+                    <option value="Awal">Ajuan Awal</option>
+                    <option value="Perubahan">Ajuan Perubahan</option>
+                  </select>
+                  <button class="btn btn-sm btn-outline-primary" id="btn-refresh-dashboard"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+                </div>
+            </div>
+            <div id="dashboard-filter-info" class="alert alert-secondary small p-2 text-center" style="display: none;"></div>
+            <div id="global-announcement-area" class="alert alert-primary" style="display: none;">
+                <h5 class="alert-heading"><i class="bi bi-megaphone-fill"></i> Pengumuman</h5>
+                <p id="global-announcement-text" class="mb-0"></p>
+            </div>
+            <div id="dashboard-deadline-info" class="alert alert-info text-center small p-2" style="display: none;"></div>
+
+            <!-- Ringkasan Angka -->
+            <div class="row g-3 mb-4">
+                <div class="col-xl-3 col-md-6" id="card-diajukan">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="text-muted">Total Diajukan</h6>
+                                    <h4 class="fw-bold" id="dashboard-total-diajukan-total">Rp 0</h4>
+                                    <div id="dashboard-diajukan-breakdown" class="mt-2">
+                                        <div class="small text-primary">Awal: <strong id="dashboard-total-diajukan-awal">Rp 0</strong></div>
+                                        <div class="small text-secondary">Perubahan: <strong id="dashboard-total-diajukan-perubahan">Rp 0</strong></div>
+                                    </div>
+                                </div>
+                                <i class="bi bi-box-seam-fill fs-2 text-primary opacity-50"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-3 col-md-6" id="card-diterima">
+                     <div class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="text-muted">Total Diterima (Bersih)</h6>
+                                    <h4 class="fw-bold text-success" id="dashboard-total-diterima-total">Rp 0</h4>
+                                     <div id="dashboard-diterima-breakdown" class="mt-2">
+                                        <!-- content generated by JS -->
+                                    </div>
+                                </div>
+                                <i class="bi bi-check-circle-fill fs-2 text-success opacity-50"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-3 col-md-6" id="dashboard-total-pagu-card">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="text-muted" id="dashboard-pagu-label">Pagu Anggaran</h6>
+                                    <h4 class="fw-bold text-info" id="dashboard-total-pagu-total">Rp 0</h4>
+                                    <div id="dashboard-pagu-breakdown" class="mt-2">
+                                        <div class="small text-info">Pagu Awal: <strong id="dashboard-total-pagu-awal">Rp 0</strong></div>
+                                        <div class="small text-dark">Pagu Final Diterima: <strong id="dashboard-total-pagu-perubahan">Rp 0</strong></div>
+                                    </div>
+                                </div>
+                                <i class="bi bi-cash-stack fs-2 text-info opacity-50"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-3 col-md-6" id="card-rpd-realisasi">
+                    <div class="card h-100 shadow-sm">
+                         <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="text-muted">RPD vs Realisasi</h6>
+                                    <div class="mb-2">
+                                        <span class="small">RPD:</span> <strong id="dashboard-total-rpd">Rp 0</strong>
+                                        <div id="dashboard-rpd-breakdown"></div>
+                                    </div>
+                                    <div>
+                                        <span class="small">Realisasi:</span> <strong id="dashboard-total-realisasi">Rp 0</strong>
+                                         <div id="dashboard-realisasi-breakdown"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h4 id="dashboard-persen-realisasi" class="fw-bold text-warning">0%</h4>
+                                </div>
+                            </div>
+                            <div class="progress mt-2" style="height: 5px;">
+                                <div id="dashboard-persen-realisasi-bar" class="progress-bar bg-warning" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ringkasan Status Ajuan -->
+            <div class="row g-3 mb-4">
+              <div class="col"><div class="card card-status text-center"><div class="card-body"><h5 class="fw-bold" id="dashboard-count-menunggu">0</h5><small class="text-muted">Menunggu Review</small></div></div></div>
+              <div class="col"><div class="card card-status text-center"><div class="card-body"><h5 class="fw-bold text-success" id="dashboard-count-diterima">0</h5><small class="text-muted">Diterima</small></div></div></div>
+              <div class="col"><div class="card card-status text-center"><div class="card-body"><h5 class="fw-bold text-danger" id="dashboard-count-ditolak">0</h5><small class="text-muted">Ditolak</small></div></div></div>
+              <div class="col"><div class="card card-status text-center"><div class="card-body"><h5 class="fw-bold text-warning" id="dashboard-count-revisi">0</h5><small class="text-muted">Revisi</small></div></div></div>
+            </div>
+
+            <div id="direktorat-charts">
+              <div class="row g-3">
+                  <div class="col-12">
+                      <div class="card shadow-sm">
+                           <div class="card-header">
+                              <h5>Ringkasan Status Unit</h5>
+                          </div>
+                          <div class="card-body">
+                              <div class="row g-3" id="direktorat-status-cards-container">
+                                <!-- Cards will be rendered here by JS -->
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+                  <div class="col-12">
+                      <div class="card shadow-sm">
+                          <div class="card-header d-flex justify-content-between">
+                              <h5>Tabel Ringkasan Anggaran & Realisasi per Unit</h5>
+                              <button class="btn btn-sm btn-outline-success" id="btn-export-excel-direktorat-summary" title="Export ke Excel"><i class="bi bi-file-earmark-excel-fill"></i></button>
+                          </div>
+                          <div class="card-body" id="direktorat-summary-table-container">
+                              <!-- Table will be rendered here by JS -->
+                          </div>
+                      </div>
+                  </div>
+              </div>
+            </div>
+
+            <div class="card shadow-sm mt-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+      <h5>Rekapan Realisasi per Unit (Filter)</h5>
+  </div>
+
+  <div class="card-body">
+      <!-- FILTER -->
+      <div class="row g-2 mb-3">
+          <!-- NEW FILTER: Unit/Prodi -->
+          <div class="col-md-3">
+              <label class="form-label small">Filter Unit/Prodi</label>
+              <select id="filterProdiRekapan" class="form-select form-select-sm">
+                  <option value="">Semua Unit</option>
+              </select>
+          </div>
+
+          <!-- Filter Grub Belanja (Adjusted to col-md-3) -->
+          <div class="col-md-3">
+              <label class="form-label small">Filter Grub Belanja</label>
+              <select id="filterGrubBelanja" class="form-select form-select-sm">
+                  <option value="">Semua Grub Belanja</option>
+              </select>
+          </div>
+
+          <!-- Filter Kelompok Belanja (Adjusted to col-md-3) -->
+          <div class="col-md-3">
+              <label class="form-label small">Filter Kelompok Belanja</label>
+              <select id="filterKelompokBelanja" class="form-select form-select-sm">
+                  <option value="">Semua Kelompok Belanja</option>
+              </select>
+          </div>
+
+          <!-- Tombol Terapkan (Adjusted to col-md-3 and aligned to end) -->
+          <div class="col-md-3 d-flex align-items-end">
+              <button id="btn-apply-filter-rekapan" class="btn btn-primary w-100">
+                  Terapkan Filter
+              </button>
+          </div>
+      </div>
+      <!-- TABLE -->
+      <div class="table-responsive">
+          <table class="table table-bordered" id="tableRekapRealisasiUnit">
+              <thead class="table-light">
+                  <tr>
+                      <th>Unit / Prodi</th>
+                      <th>Grub Belanja</th>
+                      <th>Kelompok Belanja</th>
+                      <th>Total Realisasi</th>
+                      <th>Total RPD</th>
+                      <th>Persentase</th>
+                  </tr>
+              </thead>
+              <tbody id="rekapRealisasiUnitBody">
+              </tbody>
+          </table>
+      </div>
+<div class="row g-3">
+              <div class="col-lg-9">
+                <div class="card shadow-sm">
+                  <div class="card-header">Grafik RPD vs Realisasi per Bulan</div>
+                  <div class="card-body">
+                      <canvas id="chartRPDvsRealisasi"></canvas>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-3">
+                  <div class="card shadow-sm mb-3">
+                      <div class="card-header">Ringkasan per Triwulan</div>
+                      <div class="card-body" id="dashboard-triwulan-summaries"></div>
+                  </div>
+                   <div class="card shadow-sm">
+                      <div class="card-header">Ringkasan per Semester</div>
+                      <div class="card-body" id="dashboard-semester-summaries"></div>
+                  </div>
+              </div>
+            </div>
+          </div>
+  </div>
+</div>
+
+
+            
+
+          <!-- TAB: Form Ajuan -->
+          <div class="tab-pane fade" id="tab-form-ajuan">
+            <h4 id="ajuan-form-title"><i class="bi bi-file-earmark-plus"></i> Formulir Ajuan Awal</h4>
+            <div id="pagu-info-area" class="alert alert-light mt-3 p-3" style="display: none;"></div>
+            
+            <!-- NEW: Import Ajuan Massal Section -->
+            <div class="card shadow-sm mb-4 d-print-none">
+                <div class="card-header"><i class="bi bi-file-earmark-arrow-up"></i> Import Ajuan Massal (Excel)</div>
+                <div class="card-body">
+                    <p class="small text-muted">Gunakan template Excel untuk mengunggah banyak rincian sekaligus. Pastikan Anda berada di tahap Ajuan yang benar (Awal/Perubahan).</p>
+                    <div class="d-flex gap-3 align-items-center flex-wrap">
+                        <button class="btn btn-sm btn-outline-info" id="btn-download-ajuan-template">
+                            <i class="bi bi-file-earmark-excel-fill"></i> Unduh Template Import
+                        </button>
+                        <label for="input-upload-excel-ajuan" class="btn btn-sm btn-success">
+                            <i class="bi bi-upload"></i> Pilih File Excel (.xlsx/.xls/.csv)
+                        </label>
+                        <input type="file" id="input-upload-excel-ajuan" class="d-none" accept=".xlsx, .xls, .csv">
+                    </div>
+                </div>
+            </div>
+            <!-- END NEW SECTION -->
+
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="judulKegiatan" class="form-label">Judul Kegiatan</label>
+                            <input type="text" class="form-control" id="judulKegiatan" placeholder="cth: Praktikum Keperawatan Medikal Bedah II">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="selectGrub" class="form-label">Grub Belanja Utama</label>
+                            <select class="form-select" id="selectGrub"></select>
+                        </div>
+                        <hr>
+                        <h5 class="mt-4">Rincian Ajuan</h5>
+                        <div class="col-md-6">
+                            <label for="namaAjuan" class="form-label">Nama Ajuan / Rincian Belanja</label>
+                            <input type="text" class="form-control" id="namaAjuan" placeholder="cth: Pembelian Manekin Dewasa">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="selectKelompok" class="form-label">Kelompok</label>
+                            <select class="form-select" id="selectKelompok"></select>
+                        </div>
+                        
+                        <!-- PENTING: Menggunakan input Jumlah dan Harga Satuan langsung -->
+                        <div class="col-md-3">
+                            <label for="jumlah" class="form-label">Jumlah</label>
+                            <input type="number" class="form-control" id="jumlah" min="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="satuan" class="form-label">Satuan</label>
+                            <input type="text" class="form-control" id="satuan" placeholder="cth: unit, buah, paket">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="hargaSatuan" class="form-label">Harga Satuan (Rp)</label>
+                            <input type="number" class="form-control" id="hargaSatuan" min="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="total" class="form-label">Total (Rp)</label>
+                            <input type="number" class="form-control" id="total" readonly>
+                        </div>
+                        <!-- END PENTING -->
+                        
+                        <div class="col-md-6">
+                            <label for="keterangan" class="form-label">Keterangan</label>
+                            <textarea class="form-control" id="keterangan" rows="1"></textarea>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="selectRevisi" class="form-label">Status Revisi</label>
+                            <select id="selectRevisi" class="form-select">
+                                <option value="Ajuan Baru" selected>Ajuan Baru</option>
+                                <option value="Penambahan">Penambahan</option>
+                                <option value="Pengurangan">Pengurangan</option>
+                                <option value="Pergeseran">Pergeseran</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="dataDukung" class="form-label">Link Data Dukung</label>
+                            <input type="url" class="form-control" id="dataDukung" placeholder="https://">
+                        </div>
+                    </div>
+                    <div class="text-end mt-3">
+                        <button class="btn btn-primary" id="btn-add-to-staging"><i class="bi bi-plus-circle"></i> Tambah ke Daftar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="staging-area" class="mt-4" style="display: none;">
+                <h5>Daftar Ajuan Sementara</h5>
+                <div id="staging-summary" class="alert alert-info small"></div>
+                <div id="staging-table-container" class="table-responsive"></div>
+                <div class="text-end mt-2">
+                    <button class="btn btn-warning" id="btn-clear-staging"><i class="bi bi-x-circle"></i> Bersihkan Semua</button>
+                    <button class="btn btn-success" id="btn-submit-all-staged"><i class="bi bi-send-fill"></i> Kirim Semua Ajuan</button>
+                </div>
+            </div>
+          </div>
+          
+          <!-- TAB: Daftar Ajuan Awal -->
+          <div class="tab-pane fade" id="tab-daftar-awal">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h4 id="daftar-awal-title"><i class="bi bi-list-check"></i> Daftar Ajuan Awal</h4>
+
+                <!-- OPSI CETAK/PDF -->
+                <div class="d-flex align-items-center gap-2 border p-2 rounded-2 bg-light d-print-none">
+                    <small class="text-muted">Opsi Cetak/PDF:</small>
+                    <select class="form-select form-select-sm" id="print-paper-size-tableajuanawal" style="width: auto;">
+                        <option value="A4" selected>A4</option>
+                        <option value="F4">Folio (F4)</option>
+                        <option value="Letter">Letter</option>
+                        <option value="Legal">Legal</option>
+                    </select>
+                    <select class="form-select form-select-sm" id="print-orientation-tableajuanawal" style="width: auto;">
+                        <option value="portrait">Portrait</option>
+                        <option value="landscape" selected>Landscape</option>
+                    </select>
+                </div>
+                <!-- BATAS OPSI CETAK/PDF -->
+                
+                <div class="btn-group d-print-none">
+                    <button class="btn btn-sm btn-outline-secondary" id="btn-print-awal" title="Cetak"><i class="bi bi-printer-fill"></i> Cetak</button>
+                    <button class="btn btn-sm btn-outline-primary" id="btn-export-pdf-awal" title="Simpan sebagai PDF"><i class="bi bi-file-earmark-pdf-fill"></i> PDF</button>
+                    <button class="btn btn-sm btn-outline-success" id="btn-export-excel-awal" title="Export ke Excel"><i class="bi bi-file-earmark-excel-fill"></i> Excel</button>
+                    <button class="btn btn-sm btn-outline-primary" id="btn-refresh-awal"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+                </div>
+            </div>
+            <div class="filter-bar d-print-none">
+              <select id="filterStatusAwal" class="form-select"><option value="">Semua Status</option><option value="Menunggu Review">Menunggu Review</option><option value="Diterima">Diterima</option><option value="Ditolak">Ditolak</option><option value="Revisi">Revisi</option></select>
+              <select id="filterProdiAwal" class="form-select"></select>
+              <select id="filterGrubAwal" class="form-select"></select>
+              <select id="filterKelompokAwal" class="form-select"></select>
+            </div>
+            <div id="summary-display-awal" class="summary-bar"></div>
+            <div id="bulk-action-bar-awal" class="bulk-action-bar d-print-none" style="display: none;">
+                <span><strong id="bulk-selected-count-awal">0</strong> item terpilih:</span>
+                <button class="btn btn-sm btn-success" id="bulk-accept-awal"><i class="bi bi-check-lg"></i> Terima</button>
+                <button class="btn btn-sm btn-danger" id="bulk-reject-awal"><i class="bi bi-x-lg"></i> Tolak</button>
+                <button class="btn btn-sm btn-warning text-dark" id="bulk-revision-awal"><i class="bi bi-arrow-return-left"></i> Revisi</button>
+                <button class="btn btn-sm btn-outline-secondary" id="bulk-block-awal"><i class="bi bi-lock-fill"></i> Blokir</button>
+                <button class="btn btn-sm btn-outline-danger" id="bulk-delete-awal"><i class="bi bi-trash-fill"></i> Hapus</button>
+            </div>
+            <div id="tableAjuanAwal" class="table-responsive"></div>
+          </div>
+
+          <!-- TAB: Daftar Ajuan Perubahan -->
+          <div class="tab-pane fade" id="tab-daftar-perubahan">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h4 id="daftar-perubahan-title"><i class="bi bi-list-check"></i> Daftar Ajuan Perubahan</h4>
+
+                <!-- OPSI CETAK/PDF -->
+                <div class="d-flex align-items-center gap-2 border p-2 rounded-2 bg-light d-print-none">
+                    <small class="text-muted">Opsi Cetak/PDF:</small>
+                    <select class="form-select form-select-sm" id="print-paper-size-tableajuanperubahan" style="width: auto;">
+                        <option value="A4" selected>A4</option>
+                        <option value="F4">Folio (F4)</option>
+                        <option value="Letter">Letter</option>
+                        <option value="Legal">Legal</option>
+                    </select>
+                    <select class="form-select form-select-sm" id="print-orientation-tableajuanperubahan" style="width: auto;">
+                        <option value="portrait">Portrait</option>
+                        <option value="landscape" selected>Landscape</option>
+                    </select>
+                </div>
+                <!-- BATAS OPSI CETAK/PDF -->
+                
+                <div class="btn-group d-print-none">
+                    <button class="btn btn-sm btn-outline-secondary" id="btn-print-perubahan" title="Cetak"><i class="bi bi-printer-fill"></i> Cetak</button>
+                    <button class="btn btn-sm btn-outline-primary" id="btn-export-pdf-perubahan" title="Simpan sebagai PDF"><i class="bi bi-file-earmark-pdf-fill"></i> PDF</button>
+                    <button class="btn btn-sm btn-outline-success" id="btn-export-excel-perubahan" title="Export ke Excel"><i class="bi bi-file-earmark-excel-fill"></i> Excel</button>
+
+                    <button class="btn btn-sm btn-info" id="btn-copy-accepted">
+    <i class="bi bi-files"></i> Pindahkan Ajuan Diterima
+</button>
+
+<!-- Hidden button untuk backend Generate Revisi -->
+<button class="btn btn-sm btn-outline-primary d-none" id="btn-pindahkan-ajuan-backend">
+    <i class="bi bi-arrow-left-right"></i> BACKEND: Pindahkan
+</button>
+
+<button class="btn btn-sm btn-outline-primary" id="btn-refresh-perubahan">
+    <i class="bi bi-arrow-clockwise"></i> Refresh
+</button>
+
+                </div>
+            </div>
+            <div class="filter-bar d-print-none">
+              <select id="filterStatusPerubahan" class="form-select"><option value="">Semua Status</option><option value="Menunggu Review">Menunggu Review</option><option value="Diterima">Diterima</option><option value="Ditolak">Ditolak</option><option value="Revisi">Revisi</option></select>
+              <select id="filterProdiPerubahan" class="form-select"></select>
+              <select id="filterGrubPerubahan" class="form-select"></select>
+              <select id="filterKelompokPerubahan" class="form-select"></select>
+            </div>
+            <div id="summary-display-perubahan" class="summary-bar"></div>
+            <div id="bulk-action-bar-perubahan" class="bulk-action-bar d-print-none" style="display: none;">
+                <span><strong id="bulk-selected-count-perubahan">0</strong> item terpilih:</span>
+                <button class="btn btn-sm btn-success" id="bulk-accept-perubahan"><i class="bi bi-check-lg"></i> Terima</button>
+                <button class="btn btn-sm btn-danger" id="bulk-reject-perubahan"><i class="bi bi-x-lg"></i> Tolak</button>
+                <button class="btn btn-sm btn-warning text-dark" id="bulk-revision-perubahan"><i class="bi bi-arrow-return-left"></i> Revisi</button>
+                <button class="btn btn-sm btn-outline-secondary" id="bulk-block-perubahan"><i class="bi bi-lock-fill"></i> Blokir</button>
+                <button class="btn btn-sm btn-outline-danger" id="bulk-delete-perubahan"><i class="bi bi-trash-fill"></i> Hapus</button>
+            </div>
+            <div id="tableAjuanPerubahan" class="table-responsive"></div>
+          </div>
+          
+          <!-- TAB: RPD Awal -->
+          <div class="tab-pane fade" id="tab-rpd-awal">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h4 id="rpd-awal-title"><i class="bi bi-calendar2-event"></i> RPD Awal</h4>
+
+                <!-- OPSI CETAK/PDF -->
+                <div class="d-flex align-items-center gap-2 border p-2 rounded-2 bg-light d-print-none">
+                    <small class="text-muted">Opsi Cetak/PDF:</small>
+                    <select class="form-select form-select-sm" id="print-paper-size-rpdawal" style="width: auto;">
+                        <option value="A4" selected>A4</option>
+                        <option value="F4">Folio (F4)</option>
+                        <option value="Letter">Letter</option>
+                        <option value="Legal">Legal</option>
+                    </select>
+                    <select class="form-select form-select-sm" id="print-orientation-rpdawal" style="width: auto;">
+                        <option value="portrait">Portrait</option>
+                        <option value="landscape" selected>Landscape</option>
+                    </select>
+                </div>
+                <!-- BATAS OPSI CETAK/PDF -->
+                
+                <div class="d-flex align-items-center gap-2 d-print-none">
+                    <select id="filterProdiRPDAwal" class="form-select form-select-sm" style="width: auto;"></select>
+                    <div class="btn-group">
+                       <button class="btn btn-sm btn-outline-secondary" id="btn-print-rpd-awal" title="Cetak"><i class="bi bi-printer-fill"></i> Cetak</button>
+                       <button class="btn btn-sm btn-outline-primary" id="btn-export-pdf-rpd-awal" title="Simpan sebagai PDF"><i class="bi bi-file-earmark-pdf-fill"></i> PDF</button>
+                       <button class="btn btn-sm btn-outline-success" id="btn-export-excel-rpd-awal" title="Export ke Excel"><i class="bi bi-file-earmark-excel-fill"></i> Excel</button>
+                       <button class="btn btn-sm btn-outline-primary" id="btn-refresh-rpd-awal"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+                    </div>
+                </div>
+            </div>
+            <div id="tableRPDAwal" class="table-responsive"></div>
+          </div>
+
+          <!-- TAB: RPD Perubahan -->
+          <div class="tab-pane fade" id="tab-rpd-perubahan">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h4 id="rpd-perubahan-title"><i class="bi bi-calendar2-event"></i> RPD Perubahan</h4>
+
+                <!-- OPSI CETAK/PDF -->
+                <div class="d-flex align-items-center gap-2 border p-2 rounded-2 bg-light d-print-none">
+                    <small class="text-muted">Opsi Cetak/PDF:</small>
+                    <select class="form-select form-select-sm" id="print-paper-size-rpdperubahan" style="width: auto;">
+                        <option value="A4" selected>A4</option>
+                        <option value="F4">Folio (F4)</option>
+                        <option value="Letter">Letter</option>
+                        <option value="Legal">Legal</option>
+                    </select>
+                    <select class="form-select form-select-sm" id="print-orientation-rpdperubahan" style="width: auto;">
+                        <option value="portrait">Portrait</option>
+                        <option value="landscape" selected>Landscape</option>
+                    </select>
+                </div>
+                <!-- BATAS OPSI CETAK/PDF -->
+                
+                <div class="d-flex align-items-center gap-2 d-print-none">
+                    <select id="filterProdiRPDPerubahan" class="form-select form-select-sm" style="width: auto;"></select>
+                    <div class="btn-group">
+                       <button class="btn btn-sm btn-outline-secondary" id="btn-print-rpd-perubahan" title="Cetak"><i class="bi bi-printer-fill"></i> Cetak</button>
+                       <button class="btn btn-sm btn-outline-primary" id="btn-export-pdf-rpd-perubahan" title="Simpan sebagai PDF"><i class="bi bi-file-earmark-pdf-fill"></i> PDF</button>
+                       <button class="btn btn-sm btn-outline-success" id="btn-export-excel-rpd-perubahan" title="Export ke Excel"><i class="bi bi-file-earmark-excel-fill"></i> Excel</button>
+                       <button class="btn btn-sm btn-outline-primary" id="btn-refresh-rpd-perubahan"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+                    </div>
+                </div>
+            </div>
+            <div id="tableRPDPerubahan" class="table-responsive"></div>
+          </div>
+
+          <!-- TAB: Realisasi Awal -->
+          <div class="tab-pane fade" id="tab-realisasi-awal">
+             <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h4 id="realisasi-awal-title"><i class="bi bi-graph-up-arrow"></i> Realisasi Awal</h4>
+
+                <!-- OPSI CETAK/PDF -->
+                <div class="d-flex align-items-center gap-2 border p-2 rounded-2 bg-light d-print-none">
+                    <small class="text-muted">Opsi Cetak/PDF:</small>
+                    <select class="form-select form-select-sm" id="print-paper-size-realisasiawal" style="width: auto;">
+                        <option value="A4" selected>A4</option>
+                        <option value="F4">Folio (F4)</option>
+                        <option value="Letter">Letter</option>
+                        <option value="Legal">Legal</option>
+                    </select>
+                    <select class="form-select form-select-sm" id="print-orientation-realisasiawal" style="width: auto;">
+                        <option value="portrait">Portrait</option>
+                        <option value="landscape" selected>Landscape</option>
+                    </select>
+                </div>
+                <!-- BATAS OPSI CETAK/PDF -->
+                
+                <div class="d-flex align-items-center gap-2 d-print-none">
+                    <select id="filterProdiRealisasiAwal" class="form-select form-select-sm" style="width: auto;"></select>
+                    <div class="btn-group">
+                       <button class="btn btn-sm btn-outline-secondary" id="btn-print-realisasi-awal" title="Cetak"><i class="bi bi-printer-fill"></i> Cetak</button>
+                       <button class="btn btn-sm btn-outline-primary" id="btn-export-pdf-realisasi-awal" title="Simpan sebagai PDF"><i class="bi bi-file-earmark-pdf-fill"></i> PDF</button>
+                       <button class="btn btn-sm btn-outline-success" id="btn-export-excel-realisasi-awal" title="Export ke Excel"><i class="bi bi-file-earmark-excel-fill"></i> Excel</button>
+                       <button class="btn btn-sm btn-outline-primary" id="btn-refresh-realisasi-awal"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+                    </div>
+                </div>
+            </div>
+            <div id="realisasi-summary-area-awal" class="mb-3"></div>
+            <div id="tableRealisasiAwal" class="table-responsive"></div>
+          </div>
+
+          <!-- TAB: Realisasi Perubahan -->
+          <div class="tab-pane fade" id="tab-realisasi-perubahan">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h4 id="realisasi-perubahan-title"><i class="bi bi-graph-up-arrow"></i> Realisasi Perubahan</h4>
+
+                <!-- OPSI CETAK/PDF -->
+                <div class="d-flex align-items-center gap-2 border p-2 rounded-2 bg-light d-print-none">
+                    <small class="text-muted">Opsi Cetak/PDF:</small>
+                    <select class="form-select form-select-sm" id="print-paper-size-realisasiperubahan" style="width: auto;">
+                        <option value="A4" selected>A4</option>
+                        <option value="F4">Folio (F4)</option>
+                        <option value="Letter">Letter</option>
+                        <option value="Legal">Legal</option>
+                    </select>
+                    <select class="form-select form-select-sm" id="print-orientation-realisasiperubahan" style="width: auto;">
+                        <option value="portrait">Portrait</option>
+                        <option value="landscape" selected>Landscape</option>
+                    </select>
+                </div>
+                <!-- BATAS OPSI CETAK/PDF -->
+                
+                <div class="d-flex align-items-center gap-2 d-print-none">
+                    <select id="filterProdiRealisasiPerubahan" class="form-select form-select-sm" style="width: auto;"></select>
+                     <div class="btn-group">
+                       <button class="btn btn-sm btn-outline-secondary" id="btn-print-realisasi-perubahan"><i class="bi bi-printer-fill"></i> Cetak</button>
+                       <button class="btn btn-sm btn-outline-primary" id="btn-export-pdf-realisasi-perubahan"><i class="bi bi-file-earmark-pdf-fill"></i> PDF</button>
+                       <button class="btn btn-sm btn-outline-success" id="btn-export-excel-realisasi-perubahan"><i class="bi bi-file-earmark-excel-fill"></i> Excel</button>
+                       <button class="btn btn-sm btn-outline-primary" id="btn-refresh-realisasi-perubahan"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+                    </div>
+                </div>
+            </div>
+            <div id="realisasi-summary-area-perubahan" class="mb-3"></div>
+            <div id="tableRealisasiPerubahan" class="table-responsive"></div>
+          </div>
+          
+          <!-- TAB: Berita Acara -->
+          <div class="tab-pane fade" id="tab-berita-acara">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h4><i class="bi bi-printer-fill"></i> Pratinjau Berita Acara</h4>
+                 <div class="d-flex align-items-center gap-2 d-print-none">
+                    <div id="ba-filter-group-prodi">
+                       <select id="filterProdiBA" class="form-select form-select-sm" style="width: auto;"></select>
+                    </div>
+                    <select id="filterTipeBA" class="form-select form-select-sm" style="width: auto;">
+                        <option value="Awal">Ajuan Awal</option>
+                        <!-- Options for Perubahan will be dynamically updated by JS -->
+                    </select>
+                    <div class="btn-group">
+                       <button class="btn btn-sm btn-primary" id="btn-preview-ba"><i class="bi bi-eye-fill"></i> Tampilkan Pratinjau</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card shadow-sm d-print-none" id="ba-actions" style="display: none;">
+                <div class="card-body d-flex justify-content-between">
+                     <div class="d-flex align-items-center gap-2">
+                        <small class="text-muted">Pengaturan PDF:</small>
+                        <select class="form-select form-select-sm" id="ba-paper-size" style="width: auto;">
+                            <option value="A4" selected>A4</option>
+                            <option value="F4">Folio (F4)</option>
+                            <option value="Letter">Letter</option>
+                            <option value="Legal">Legal</option>
+                        </select>
+                        <select class="form-select form-select-sm" id="ba-orientation" style="width: auto;">
+                            <option value="portrait" selected>Portrait</option>
+                            <option value="landscape">Landscape</option>
+                        </select>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-outline-secondary" id="btn-print-ba"><i class="bi bi-printer-fill"></i> Cetak</button>
+                        <button class="btn btn-sm btn-primary" id="btn-download-pdf-ba"><i class="bi bi-file-earmark-pdf-fill"></i> Unduh sebagai PDF</button>
+                    </div>
+                </div>
+            </div>
+            <hr>
+            <div id="berita-acara-content" class="bg-white p-4">
+              <div class="text-center text-muted p-5">Silakan pilih filter di atas dan klik "Tampilkan Pratinjau" untuk memuat Berita Acara.</div>
+            </div>
+          </div>
+
+          <!-- TAB: Log Aktivitas -->
+          <div class="tab-pane fade" id="tab-log">
+              <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h4><i class="bi bi-card-list"></i> Log Aktivitas Pengguna</h4>
+
+                <!-- OPSI CETAK/PDF -->
+                <div class="d-flex align-items-center gap-2 border p-2 rounded-2 bg-light d-print-none">
+                    <small class="text-muted">Opsi Cetak/PDF:</small>
+                    <select class="form-select form-select-sm" id="print-paper-size-tablelogaktivitas" style="width: auto;">
+                        <option value="A4" selected>A4</option>
+                        <option value="F4">Folio (F4)</option>
+                        <option value="Letter">Letter</option>
+                        <option value="Legal">Legal</option>
+                    </select>
+                    <select class="form-select form-select-sm" id="print-orientation-tablelogaktivitas" style="width: auto;">
+                        <option value="portrait" selected>Portrait</option>
+                        <option value="landscape">Landscape</option>
+                    </select>
+                </div>
+                <!-- BATAS OPSI CETAK/PDF -->
+
+                <div class="btn-group d-print-none">
+                    <!-- Note: Export/Print Log depends on the visible table, which might not contain all data due to pagination -->
+                    <button class="btn btn-sm btn-outline-secondary" id="btn-print-log" title="Cetak"><i class="bi bi-printer-fill"></i> Cetak</button>
+                    <button class="btn btn-sm btn-outline-success" id="btn-export-excel-log" title="Export ke Excel"><i class="bi bi-file-earmark-excel-fill"></i> Excel</button>
+                    <button class="btn btn-sm btn-outline-primary" id="btn-refresh-log"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+                </div>
+            </div>
+             <div class="filter-bar d-print-none">
+                <select id="filterLogUser" class="form-select"></select>
+                <input type="date" id="filterLogDateStart" class="form-control" title="Tanggal Mulai">
+                <input type="date" id="filterLogDateEnd" class="form-control" title="Tanggal Akhir">
+                <button class="btn btn-primary btn-sm" id="btn-filter-log"><i class="bi bi-funnel-fill"></i> Filter</button>
+             </div>
+             <div id="tableLogAktivitas" class="table-responsive mt-3"></div>
+             <div id="log-pagination-controls" class="d-print-none"></div>
+          </div>
+
+          <!-- TAB: Pengaturan (Direktorat) -->
+          <div class="tab-pane fade" id="tab-manage">
+            <h4><i class="bi bi-gear-fill"></i> Pengaturan Aplikasi</h4>
+            <div class="row g-4">
+              <!-- Pengguna -->
+              <div class="col-md-6">
+                <div class="card h-100 shadow-sm">
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Manajemen Pengguna (Unit)</span>
+                    <button class="btn btn-sm btn-success" id="btn-open-add-user-modal"><i class="bi bi-person-plus-fill"></i> Tambah</button>
+                  </div>
+                  <div class="card-body">
+                    <div id="listProdi" class="mb-3" style="max-height: 400px; overflow-y: auto;">
+                         <!-- Data Pengguna ditampilkan di sini -->
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <hr>
+
+<h5 class="mt-4"><i class="bi bi-file-earmark-spreadsheet"></i> Import User via CSV</h5>
+
+<div class="mb-2">
+  <small class="text-muted">
+    Format kolom CSV:
+    <strong>Email, Password, Nama_Prodi, ID_Prodi, Role, Pagu_Anggaran</strong>
+  </small>
+</div>
+
+<div class="d-flex gap-2 mb-3">
+  <input 
+    type="file" 
+    id="input-upload-user-csv" 
+    class="form-control" 
+    accept=".csv"
+  >
+
+  <button 
+    id="btn-preview-user-csv" 
+    class="btn btn-secondary"
+  >
+    <i class="bi bi-eye"></i> Preview
+  </button>
+
+  <button 
+    id="btn-upload-user-csv" 
+    class="btn btn-success"
+    disabled
+  >
+    <i class="bi bi-cloud-upload"></i> Upload
+  </button>
+</div>
+
+<div id="user-csv-preview" class="mt-3"></div>
+
+
+              <!-- Grub Belanja -->
+              <div class="col-md-6">
+                 <div class="card h-100 shadow-sm">
+                    <div class="card-header">Manajemen Grub Belanja Utama</div>
+                    <div class="card-body">
+                        <!-- Form Tambah/Edit (IDs changed: gb -> mg) -->
+                        <div class="row g-2 mb-3">
+                            <div class="col-3">
+                                <input type="text" id="mg_ID" class="form-control form-control-sm" placeholder="ID (A, B...)">
+                            </div>
+                            <div class="col-7">
+                                <input type="text" id="mg_Nama" class="form-control form-control-sm" placeholder="Nama Grub (Ex: Persiapan)">
+                            </div>
+                            <div class="col-2">
+                                <button class="btn btn-sm btn-success w-100" id="btn-save-grub-belanja"><i class="bi bi-save"></i></button>
+                            </div>
+                        </div>
+                        <hr>
+                        <!-- List Data -->
+                        <div id="listGrubBelanja" style="max-height: 250px; overflow-y: auto;">
+                            <div class="text-center text-muted small">Memuat data...</div>
+                        </div>
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn btn-sm btn-outline-success" id="btn-new-grub-belanja" title="Kosongkan Form"><i class="bi bi-plus-circle"></i> Baru</button>
+                            <button class="btn btn-sm btn-outline-success" id="btn-download-template-grub" title="Unduh template Excel untuk import massal"><i class="bi bi-file-earmark-excel-fill"></i> Template</button>
+                            <label for="input-upload-excel-grub" class="btn btn-sm btn-outline-info">
+                                <i class="bi bi-upload"></i> Import Excel
+                            </label>
+                            <input type="file" id="input-upload-excel-grub" class="d-none" accept=".xlsx, .xls">
+                        </div>
+                    </div>
+                </div>
+              </div>
+
+              <!-- Kelompok -->
+              <div class="col-md-6">
+                 <div class="card h-100 shadow-sm">
+                   <div class="card-header">Manajemen Kelompok Belanja</div>
+                   <div class="card-body">
+                      <div id="listKelompok" class="mb-3" style="max-height: 250px; overflow-y: auto;"></div>
+                      <hr>
+                      <h6>Tambah / Edit Kelompok</h6>
+                      <div class="row g-2">
+                          <div class="col-md-6"><input type="text" class="form-control form-control-sm" id="mk_ID" placeholder="ID Kelompok (cth: 52.01.01)"></div>
+                          <div class="col-md-6"><input type="text" class="form-control form-control-sm" id="mk_Nama" placeholder="Nama Kelompok"></div>
+                      </div>
+                      <button class="btn btn-primary btn-sm mt-2" id="btn-save-kelompok">Simpan Kelompok</button>
+                      <button class="btn btn-sm btn-outline-success mt-2" id="btn-download-template-kelompok" title="Unduh template Excel untuk import massal"><i class="bi bi-file-earmark-excel-fill"></i> Template</button>
+                      <label for="input-upload-excel-kelompok" class="btn btn-sm btn-outline-info mt-2">
+                          <i class="bi bi-upload"></i> Import Excel
+                      </label>
+                      <input type="file" id="input-upload-excel-kelompok" class="d-none" accept=".xlsx, .xls">
+                   </div>
+                 </div>
+              </div>
+              
+              <!-- Pengaturan Aplikasi (Global Settings) -->
+              <div class="col-md-6">
+                <div class="card h-100 shadow-sm">
+                  <div class="card-header">Pengaturan Aplikasi</div>
+                  <div class="card-body">
+                      <div class="mb-3">
+                          <label for="setting-status-awal" class="form-label">Status Ajuan Awal</label>
+                          <select id="setting-status-awal" class="form-select">
+                              <option value="Dibuka">Dibuka</option>
+                              <option value="Ditutup" selected>Ditutup</option>
+                          </select>
+                      </div>
+                      <div class="mb-3">
+                          <label for="setting-batas-tanggal" class="form-label">Batas Tanggal Pengajuan Awal</label>
+                          <input type="date" class="form-control" id="setting-batas-tanggal">
+                      </div>
+                      <div class="mb-3">
+                          <label for="setting-status-perubahan" class="form-label">Status Ajuan Perubahan</label>
+                          <select id="setting-status-perubahan" class="form-select">
+                              <option value="Dibuka">Dibuka</option>
+                              <option value="Ditutup" selected>Ditutup</option>
+                          </select>
+                      </div>
+                      <!-- START: BATAS TANGGAL PERUBAHAN BARU -->
+                      <div class="mb-3">
+                          <label for="setting-batas-tanggal-perubahan" class="form-label">Batas Tanggal Pengajuan Perubahan</label>
+                          <input type="date" class="form-control" id="setting-batas-tanggal-perubahan">
+                      </div>
+                      <!-- END: BATAS TANGGAL PERUBAHAN BARU -->
+                      <div class="mb-3">
+                           <label for="setting-tahap-perubahan" class="form-label">Tahap Perubahan Aktif Saat Ini</label>
+                           <input type="number" class="form-control" id="setting-tahap-perubahan" value="1" min="1">
+                           <small class="text-muted">Masukkan angka tahap (cth: 1 untuk Perubahan 1).</small>
+                      </div>
+                      <button class="btn btn-primary" id="btn-save-settings">Simpan Pengaturan</button>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Pengumuman -->
+              <div class="col-md-6">
+                <div class="card h-100 shadow-sm">
+                  <div class="card-header">Pengumuman Global</div>
+                  <div class="card-body">
+                      <div class="form-check mb-2">
+                          <input class="form-check-input" type="checkbox" id="setting-pengumuman-aktif">
+                          <label class="form-check-label" for="setting-pengumuman-aktif">Aktifkan Pengumuman</label>
+                      </div>
+                      <div class="mb-3">
+                          <label for="setting-pengumuman-teks" class="form-label">Teks Pengumuman</label>
+                          <textarea id="setting-pengumuman-teks" class="form-control" rows="4"></textarea>
+                      </div>
+                      <button class="btn btn-primary" id="btn-save-settings">Simpan Pengaturan</button>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Pengaturan Berita Acara -->
+              <div class="col-md-6">
+                 <div class="card h-100 shadow-sm">
+                   <div class="card-header">Pengaturan Default Berita Acara</div>
+                   <div class="card-body">
+                      <p class="small text-muted">Pengaturan ini digunakan sebagai fallback jika Unit belum mengatur penandatangan sendiri.</p>
+                      <h6>Penandatangan Kiri (Default: Unit/Jurusan)</h6>
+                      <div class="row g-2 mb-3">
+                          <!-- IDs corrected for consistency -->
+                          <div class="col-md-6"><input type="text" class="form-control form-control-sm" id="setting-ttd-kiri-jabatan" placeholder="Jabatan"></div>
+                          <div class="col-md-6"><input type="text" class="form-control form-control-sm" id="setting-ttd-kiri-nama" placeholder="Nama Lengkap & Gelar"></div>
+                      </div>
+                      <h6>Penandatangan Kanan (Default: Direktorat)</h6>
+                      <div class="row g-2 mb-3">
+                          <!-- IDs corrected for consistency -->
+                          <div class="col-md-6"><input type="text" class="form-control form-control-sm" id="setting-ttd-kanan-jabatan" placeholder="Jabatan"></div>
+                          <div class="col-md-6"><input type="text" class="form-control form-control-sm" id="setting-ttd-kanan-nama" placeholder="Nama Lengkap & Gelar"></div>
+                      </div>
+                      <button class="btn btn-primary btn-sm" id="btn-save-ba-settings">Simpan Pengaturan BA</button>
+                   </div>
+                 </div>
+              </div>
+               <!-- Backup & Restore -->
+              <div class="col-md-6">
+                  <div class="card h-100 shadow-sm">
+                      <div class="card-header">Backup & Restore</div>
+                      <div class="card-body">
+                          <p class="small text-muted">Gunakan fitur ini untuk mencadangkan atau memulihkan semua data aplikasi.</p>
+                          <div class="d-grid gap-2">
+                              <button class="btn btn-primary" id="btn-backup-data"><i class="bi bi-download"></i> Backup Semua Data</button>
+                              <label for="input-restore-data" class="btn btn-outline-danger"><i class="bi bi-upload"></i> Restore dari File</label>
+                              <input type="file" id="input-restore-data" class="d-none" accept=".json">
+                          </div>
+                      </div>
+                  </div>
+              </div>
+
+            </div>
+          </div>
+          
+          <!-- TAB: Pengaturan Akun (Prodi) -->
+          <div class="tab-pane fade" id="tab-pengaturan-akun">
+            <h4><i class="bi bi-person-gear"></i> Pengaturan Akun</h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card shadow-sm">
+                        <div class="card-header">Pengaturan Tanda Tangan Berita Acara</div>
+                        <div class="card-body">
+                            <p class="small text-muted">Informasi ini akan digunakan pada kolom penandatangan kiri (Unit/Jurusan) di Berita Acara.</p>
+                             <div class="mb-3">
+                                <!-- IDs corrected for consistency -->
+                                <label for="input-ttd-jabatan" class="form-label">Jabatan Penandatangan</label>
+                                <input type="text" class="form-control" id="input-ttd-jabatan" placeholder="Contoh: Ketua Jurusan Keperawatan">
+                             </div>
+                             <div class="mb-3">
+                                <!-- IDs corrected for consistency -->
+                                <label for="input-ttd-nama" class="form-label">Nama Lengkap & Gelar Penandatangan</label>
+                                <input type="text" class="form-control" id="input-ttd-nama" placeholder="Contoh: Nama Lengkap, S.Kep., Ns., M.Kep.">
+                             </div>
+                             <button class="btn btn-primary" id="btn-save-ttd-settings">Simpan Pengaturan</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+          </div>
+          
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- MODALS -->
+  
+  <!-- NEW: User Management Modal (used by fillEditProdi) -->
+  <div class="modal fade" id="userModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userModalTitle">Tambah/Edit Pengguna</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- START MODIFIKASI: Penambahan Grup UID dan Password -->
+                <div id="user-uid-group" class="mb-3" style="display: none;">
+                    <label for="edit_user_uid" class="form-label">UID Pengguna (Hanya Edit)</label>
+                    <input type="text" class="form-control" id="edit_user_uid" readonly>
+                </div>
+                <!-- UID input now inside the group -->
+                
+                <div class="mb-3">
+                    <label for="edit_user_id" class="form-label">ID Unit (Wajib)</label>
+                    <input type="text" class="form-control" id="edit_user_id" placeholder="Ex: KEP">
+                </div>
+                <div class="mb-3">
+                    <label for="edit_user_nama" class="form-label">Nama Unit (Wajib)</label>
+                    <input type="text" class="form-control" id="edit_user_nama">
+                </div>
+                <div class="mb-3">
+                    <label for="edit_user_email" class="form-label">Email (Wajib)</label>
+                    <input type="email" class="form-control" id="edit_user_email" placeholder="Email untuk Login">
+                </div>
+
+                <div id="user-password-group" class="mb-3">
+                    <label for="edit_user_password" class="form-label">Password (Min 6 karakter)</label>
+                    <input type="password" class="form-control" id="edit_user_password" placeholder="Hanya diisi saat menambah pengguna baru">
+                </div>
+                <!-- END MODIFIKASI -->
+                
+                <div class="mb-3">
+                    <label for="edit_user_role" class="form-label">Role (Wajib)</label>
+                    <!-- VALUE TETAP PRODI (Hanya Role) -->
+                    <select id="edit_user_role" class="form-select">
+                        <option value="prodi">prodi</option>
+                        <option value="direktorat">direktorat</option>
+                    </select>
+                </div>
+                <div id="edit-ttd-settings-group" style="display: none;">
+                    <p class="small text-muted mb-1 mt-2">Pengaturan Tanda Tangan Berita Acara (khusus Unit)</p>
+                    <div class="mb-3">
+                        <label for="edit_user_ttd_jabatan" class="form-label">Jabatan Penandatangan</label>
+                        <input type="text" class="form-control" id="edit_user_ttd_jabatan" placeholder="Contoh: Ketua Jurusan Keperawatan">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_user_ttd_nama" class="form-label">Nama Penandatangan</label>
+                        <input type="text" class="form-control" id="edit_user_ttd_nama" placeholder="Contoh: Nama Lengkap, S.Kep., Ns., M.Kep.">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-success" id="btn-update-user" style="display: none;">Simpan Perubahan</button>
+                <button type="button" class="btn btn-primary" id="btn-add-user" style="display: none;">Tambah Pengguna</button>
+            </div>
+        </div>
+    </div>
+  </div>
+
+  <!-- Edit Ajuan Modal -->
+  <div class="modal fade" id="editAjuanModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Edit Ajuan - ID: <span id="editModalAjuanId"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="edit-id-ajuan">
+            <input type="hidden" id="edit-tipeAjuan">
+            <div class="row g-3">
+              <div class="col-md-6"><label for="edit-judulKegiatan" class="form-label">Judul Kegiatan</label><input type="text" class="form-control" id="edit-judulKegiatan"></div>
+              <div class="col-md-6"><label for="edit-selectGrub" class="form-label">Grub Belanja Utama</label><select class="form-select" id="edit-selectGrub"></select></div>
+              <hr><h6 class="mt-3">Rincian Ajuan</h6>
+              <div class="col-md-6"><label for="edit-namaAjuan" class="form-label">Nama Ajuan</label><input type="text" class="form-control" id="edit-namaAjuan"></div>
+              <div class="col-md-6"><label for="edit-selectKelompok" class="form-label">Kelompok</label><select class="form-select" id="edit-selectKelompok"></select></div>
+              
+              <!-- PENTING: Menggunakan input Jumlah dan Harga Satuan langsung -->
+              <div class="col-md-3"><label for="edit-jumlah" class="form-label">Jumlah</label><input type="number" class="form-control" id="edit-jumlah" min="0"></div>
+              <div class="col-md-3"><label for="edit-satuan" class="form-label">Satuan</label><input type="text" class="form-control" id="edit-satuan"></div>
+              <div class="col-md-3"><label for="edit-hargaSatuan" class="form-label">Harga Satuan</label><input type="number" class="form-control" id="edit-hargaSatuan" min="0"></div>
+              <div class="col-md-3"><label for="edit-total" class="form-label">Total</label><input type="text" class="form-control" id="edit-total" readonly></div>
+              <!-- END PENTING -->
+
+              <div class="col-md-6"><label for="edit-keterangan" class="form-label">Keterangan</label><textarea class="form-control" id="edit-keterangan" rows="1"></textarea></div>
+              <div class="col-md-3"><label for="edit-selectRevisi" class="form-label">Status Revisi</label><select id="edit-selectRevisi" class="form-select"><option value="Ajuan Baru">Ajuan Baru</option><option value="Penambahan">Penambahan</option><option value="Pengurangan">Pengurangan</option><option value="Pergeseran">Pergeseran</option></select></div>
+              <div class="col-md-3"><label for="edit-dataDukung" class="form-label">Link Data Dukung</label><input type="url" class="form-control" id="edit-dataDukung"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+          <button type="button" class="btn btn-primary" id="btn-update-ajuan">Simpan Perubahan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Review Ajuan Modal -->
+  <div class="modal fade" id="reviewAjuanModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Review Ajuan - ID: <span id="reviewModalAjuanId"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="review-id-ajuan">
+                <input type="hidden" id="review-action">
+                <input type="hidden" id="review-old-status">
+                <p>Anda akan mengubah status ajuan menjadi: <strong id="review-action-text"></strong></p>
+                <div id="review-target-info" class="alert alert-info small" style="display: none;"></div>
+                <div class="mb-3">
+                    <label for="review-catatan" class="form-label">Catatan Reviewer (Opsional)</label>
+                    <textarea class="form-control" id="review-catatan" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="btn-submit-review">Kirim Review</button>
+            </div>
+        </div>
+    </div>
+  </div>
+
+  <!-- Komentar Modal -->
+  <div class="modal fade" id="komentarModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Diskusi Ajuan - <span id="komentarModalAjuanId"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-2">Ajuan: <strong id="komentarModalAjuanNama"></strong></p>
+                <div id="komentar-list" class="komentar-container mb-3"></div>
+                <input type="hidden" id="komentar-id-ajuan">
+                <div class="input-group">
+                    <input type="text" id="komentar-input" class="form-control" placeholder="Tulis komentar...">
+                    <button class="btn btn-primary" id="btn-submit-komentar"><i class="bi bi-send-fill"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+  </div>
+
+  <!-- History Modal -->
+  <div class="modal fade" id="historyModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-scrollable">
+          <div class="modal-content">
+              <div class="modal-header">
+                  <h5 class="modal-title">Riwayat Perubahan - ID: <span id="historyModalAjuanId"></span></h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                  <p class="small text-muted">Ajuan: <strong id="historyModalAjuanNama"></strong></p>
+                  <div id="history-log-list"></div>
+              </div>
+          </div>
+      </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
