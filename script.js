@@ -251,111 +251,38 @@ function updatePerubahanUI(settings) {
 
 
 // --- SUMMARY CALCULATION ---
+// GANTIKAN FUNGSI recalculateProdiSummary YANG LAMA DENGAN INI:
+
 async function recalculateProdiSummary(prodiId) {
     if (!prodiId) return;
     
     try {
-        const isPerubahanOpen = STATE.globalSettings.Status_Ajuan_Perubahan === 'Dibuka';
-        const tahapAktif = STATE.globalSettings.Tahap_Perubahan_Aktif || 1;
-        
-        // Tentukan Tabel Aktif & Tabel Sebelumnya
-        let activeTable = 'ajuan';
-        let previousTable = null;
-        let activeLabel = 'Awal';
+        // Panggil RPC yang baru kita buat
+        const { data, error } = await sb.rpc('get_prodi_summary', { target_prodi_id: prodiId });
 
-        if (isPerubahanOpen) {
-            activeLabel = `Perubahan ${tahapAktif}`;
-            activeTable = getAjuanTableName(activeLabel);
-            
-            // Tentukan tabel sebelumnya untuk menghitung "Pagu Sebelum"
-            if (tahapAktif === 1) {
-                previousTable = 'ajuan';
-            } else {
-                previousTable = getAjuanTableName(`Perubahan ${tahapAktif - 1}`);
-            }
-        }
+        if (error) throw error;
 
-        // 1. Hitung Data dari Tabel AKTIF (Pagu Sekarang, RPD, Realisasi)
-        let totalDiajukanActive = 0;
-        let totalDiterimaActive = 0; // Ini adalah Pagu Sekarang
-        let totalRpdActive = 0;
-        let totalRealisasiActive = 0;
-        
-        const rpdMonthly = {};
-        const realisasiMonthly = {};
-        RPD_MONTHS.forEach(m => {
-            rpdMonthly[getMonthlyKey('RPD', m)] = 0;
-            realisasiMonthly[getMonthlyKey('Realisasi', m)] = 0;
-        });
+        // Ambil hasil perhitungan (biasanya array dengan 1 objek)
+        const result = data[0] || { 
+            total_diajukan: 0, 
+            total_diterima: 0, 
+            total_rpd: 0, 
+            total_realisasi: 0 
+        };
 
-        const { data: activeData, error: activeError } = await sb.from(activeTable)
-            .select(`Total, Status, Is_Blocked, ${RPD_SELECT_COLUMNS}`)
-            .eq('ID_Prodi', prodiId);
-
-        if (activeError) throw activeError;
-
-        activeData.forEach(row => {
-            const total = Number(row.Total) || 0;
-            totalDiajukanActive += total;
-
-            if (row.Status === 'Diterima' && !row.Is_Blocked) {
-                totalDiterimaActive += total;
-                
-                // RPD & Realisasi hanya dari tahap aktif
-                RPD_MONTHS.forEach(m => {
-                    const rpdVal = Number(row[getMonthlyKey('RPD', m)]) || 0;
-                    const realVal = Number(row[getMonthlyKey('Realisasi', m)]) || 0;
-                    
-                    totalRpdActive += rpdVal;
-                    totalRealisasiActive += realVal;
-                    rpdMonthly[getMonthlyKey('RPD', m)] += rpdVal;
-                    realisasiMonthly[getMonthlyKey('Realisasi', m)] += realVal;
-                });
-            }
-        });
-
-        // 2. Hitung "Pagu Sebelum" (Previous Baseline)
-        let paguSebelum = 0;
-
-        if (isPerubahanOpen) {
-            // Jika Perubahan, Pagu Sebelum adalah Total Diterima di tahap sebelumnya
-            if (previousTable) {
-                const { data: prevData, error: prevError } = await sb.from(previousTable)
-                    .select('Total')
-                    .eq('ID_Prodi', prodiId)
-                    .eq('Status', 'Diterima')
-                    .eq('Is_Blocked', false);
-                
-                if (!prevError && prevData) {
-                    paguSebelum = prevData.reduce((sum, item) => sum + (Number(item.Total) || 0), 0);
-                }
-            }
-        } else {
-            // Jika Awal, Pagu Sebelum adalah Ceiling dari User Profile
-            const prodiUser = STATE.allProdi.find(p => p.ID_Prodi === prodiId);
-            paguSebelum = Number(prodiUser?.Pagu_Anggaran) || 0;
-        }
-        
-        // Pagu Ceiling Asli (Tetap disimpan untuk referensi)
+        // Ambil Pagu Awal (Ceiling) dari User Profile (karena tidak ada di tabel ajuan)
         const prodiUserData = STATE.allProdi.find(p => p.ID_Prodi === prodiId);
-        const paguCeilingAdmin = Number(prodiUserData?.Pagu_Anggaran) || 0;
+        const paguAwal = Number(prodiUserData?.Pagu_Anggaran) || 0;
 
-        // 3. Simpan ke Supabase prodi_summary
-        // Mapping kolom agar dashboard membacanya dengan benar:
-        // total_diterima_awal_bersih -> Pagu Sebelum (Baseline)
-        // total_diterima_final_bersih -> Pagu Sekarang (Active)
-        
+        // Simpan hasil ringkas ke tabel prodi_summary (agar dashboard cepat)
         const summaryData = {
             id_prodi: prodiId,
-            pagu_awal_ceiling: paguCeilingAdmin, 
-            total_diajukan_overall: totalDiajukanActive, 
-            total_diterima_awal_bersih: paguSebelum,     // <--- UPDATED LOGIC
-            total_diterima_final_bersih: totalDiterimaActive, // <--- UPDATED LOGIC (Active Only)
-            total_rpd_commitment: totalRpdActive,
-            total_realisasi_overall: totalRealisasiActive,
-            realisasi_monthly: realisasiMonthly,
-            rpd_monthly: rpdMonthly,
-            last_updated: sbTimestamp()
+            pagu_awal_ceiling: paguAwal,
+            total_diajukan_overall: result.total_diajukan,
+            total_diterima_final_bersih: result.total_diterima,
+            total_rpd_commitment: result.total_rpd,
+            total_realisasi_overall: result.total_realisasi,
+            last_updated: new Date().toISOString()
         };
 
         const { error: upsertError } = await sb.from(PRODI_SUMMARY_TABLE)
@@ -367,7 +294,7 @@ async function recalculateProdiSummary(prodiId) {
         STATE.direktoratSummaryData = []; 
         
     } catch (error) {
-        console.error(`[SUMMARY] Failed to update summary for ${prodiId}:`, error);
+        console.error(`[SUMMARY RPC] Failed for ${prodiId}:`, error);
     }
 }
 
@@ -477,7 +404,7 @@ async function loadInitialData() {
 async function refreshGrubBelanjaData() {
     const cached = getCache('cache_allGrubBelanja');
     if(cached) { STATE.allGrubBelanja = cached; } else {
-        const { data } = await sb.from('grub_belanja').select('*');
+        const { data } = await sb.from('grub_belanja')('ID_Grub, Nama_Grub');
         STATE.allGrubBelanja = data || [];
         setCache('cache_allGrubBelanja', STATE.allGrubBelanja);
     }
@@ -491,7 +418,7 @@ async function refreshGrubBelanjaData() {
 async function refreshKelompokData() {
     const cached = getCache('cache_allKelompok');
     if(cached) { STATE.allKelompok = cached; } else {
-        const { data } = await sb.from('kelompok').select('*');
+        const { data } = await sb.from('kelompok').select('ID_Kelompok, Nama_Kelompok');
         STATE.allKelompok = data || [];
         setCache('cache_allKelompok', STATE.allKelompok);
     }
@@ -3425,7 +3352,31 @@ function validateSubmissionDeadline(tipeAjuan) {
     }
     
     try {
-        let query = sb.from(targetTableName).select('*').eq('Tipe_Ajuan', currentTipe); // <-- REF ACT
+        // Gantilah .select('*') dengan daftar panjang ini:
+let query = sb.from(targetTableName)
+    .select(`
+        ID_Ajuan,
+        ID_Ajuan_Asal,
+        ID_Prodi,
+        Nama_Ajuan,
+        Judul_Kegiatan,
+        Grub_Belanja_Utama,
+        ID_Kelompok,
+        Total,
+        Status,
+        Is_Blocked,
+        Tipe_Ajuan,
+        Status_Revisi,
+        Data_Dukung,
+        Catatan_Reviewer,
+        Jumlah,
+        Satuan,
+        Harga_Satuan,
+        Timestamp,
+        calcA1, calcS1, calcA2, calcS2, calcA3, calcS3, 
+        calcA4, calcS4, calcA5, calcS5, calcA6, calcS6
+    `) // <-- Perhatikan: Kolom 'Komentar' DIHAPUS agar ringan
+    .eq('Tipe_Ajuan', currentTipe); // <-- REF ACT
 
         // Use getSafeValue for filter elements in case they are hidden/missing
         const prodiFilter = getSafeValue(isPerubahan ? 'filterProdiPerubahan' : 'filterProdiAwal');
@@ -5005,7 +4956,17 @@ async function loadDashboardData(forceRefresh = false) {
         if (forceRefresh || STATE.direktoratSummaryData.length === 0) {
             const { data: summaryData, error: summaryError } = await sb
                 .from(PRODI_SUMMARY_TABLE)
-                .select('*'); 
+                // Hanya ambil kolom yang dipakai untuk perhitungan kartu & tabel ringkasan
+.select(`
+    id_prodi, 
+    pagu_awal_ceiling, 
+    total_diterima_awal_bersih, 
+    total_diterima_final_bersih, 
+    total_rpd_commitment, 
+    total_realisasi_overall,
+    rpd_monthly,      
+    realisasi_monthly 
+`); 
 
             if (summaryError) throw summaryError;
             STATE.direktoratSummaryData = summaryData || [];
@@ -6194,7 +6155,7 @@ function renderProdiStatusCards(summaryData) {
         const offset = (STATE.currentLogPage - 1) * STATE.logPageSize;
         
         let queryBuilder = sb.from('activityLog')
-            .select('*', { count: 'exact' })
+            .select('userId, action, details, timestamp', { count: 'exact' })
             .order('timestamp', { ascending: false });
 
         // Use getSafeValue for log filters
