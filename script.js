@@ -4949,6 +4949,25 @@ async function loadDashboardData(forceRefresh = false) {
     const activePhaseLabel = isPerubahanOpen ? `Perubahan ${tahapAktif}` : 'Awal';
     const activeTableName = getAjuanTableName(activePhaseLabel);
 
+// Di dalam fungsi loadDashboardData()
+
+// 1. Subscribe KHUSUS ke baris summary milik Prodi yang login (jika role prodi)
+// Atau subscribe ke semua jika role Direktorat
+const filterConfig = STATE.role === 'prodi' 
+    ? { event: '*', schema: 'public', table: 'prodi_summary', filter: `id_prodi=eq.${STATE.id}` }
+    : { event: '*', schema: 'public', table: 'prodi_summary' };
+
+const dashboardSubscription = sb
+  .channel('dashboard-live')
+  .on('postgres_changes', filterConfig, (payload) => {
+      // Payload hanya berisi data kecil yang berubah, bukan seluruh tabel!
+      console.log('Perubahan data terdeteksi:', payload);
+      
+      // Update UI lokal secara instan tanpa fetch ulang dari server
+      updateDashboardUI(payload.new); 
+  })
+  .subscribe();
+
     // MODE 1: DIREKTORAT SUMMARY (Fast View)
     const isDirectorateSummaryMode = STATE.role === 'direktorat' && !selectedYear && !selectedTipe;
 
