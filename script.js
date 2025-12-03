@@ -123,6 +123,17 @@ const setElChecked = (id, val) => { const el = document.getElementById(id); if(e
 
 // --- DOM CONTENT LOADED ---
 document.addEventListener('DOMContentLoaded', function() {
+const editUserRoleSelect = document.getElementById('edit_user_role');
+if (editUserRoleSelect) {
+    editUserRoleSelect.addEventListener('change', function() {
+        const ttdGroup = document.getElementById('edit-ttd-settings-group');
+        // Tampilkan setting TTD hanya jika role adalah 'prodi'
+        // Sembunyikan jika role 'direktorat' atau 'pimpinan'
+        if (ttdGroup) {
+            ttdGroup.style.display = (this.value === 'prodi') ? 'block' : 'none';
+        }
+    });
+}
 
 // --- CORE FUNCTION: AUTO COPY AJUAN (RPC VERSION) ---
 async function performPindahkanAjuan() {
@@ -683,6 +694,24 @@ function downloadAjuanTemplate() {
       // 9. Ajuan Template Download (NEW)
       safeAddClickListener('btn-download-ajuan-template', downloadAjuanTemplate);
   }
+  // Tambahkan ini di area Event Listeners
+const filterProdiRekapan = document.getElementById('filterProdiRekapan');
+if (filterProdiRekapan) {
+    filterProdiRekapan.addEventListener('change', () => {
+        loadRekapanRealisasi(); // Memanggil ulang fungsi load data
+    });
+}
+
+// Pastikan filter Grub dan Kelompok juga memicu reload (jika belum ada)
+const filterGrubRekapan = document.getElementById('filterGrubBelanja');
+if (filterGrubRekapan) {
+    filterGrubRekapan.addEventListener('change', loadRekapanRealisasi);
+}
+
+const filterKelompokRekapan = document.getElementById('filterKelompokBelanja');
+if (filterKelompokRekapan) {
+    filterKelompokRekapan.addEventListener('change', loadRekapanRealisasi);
+}
 
   // --- END UTILITY FUNCTIONS FOR EXPORT & PRINT ---
   
@@ -878,7 +907,6 @@ async function loadFilterOptionsRekapan() {
     try {
         // Load Grub Belanja
         const { data: grubData, error: grubError } = await sb.from('grub_belanja').select('*').order('Nama_Grub');
-        // PERBAIKAN: Cek jika grubData ada sebelum forEach
         if (grubData) {
             const elGrub = document.getElementById("filterGrubBelanja");
             if (elGrub) {
@@ -891,7 +919,6 @@ async function loadFilterOptionsRekapan() {
 
         // Load Kelompok Belanja
         const { data: kelData, error: kelError } = await sb.from('kelompok').select('*').order('Nama_Kelompok');
-        // PERBAIKAN: Cek jika kelData ada sebelum forEach
         if (kelData) {
             const elKel = document.getElementById("filterKelompokBelanja");
             if (elKel) {
@@ -902,28 +929,34 @@ async function loadFilterOptionsRekapan() {
             }
         }
         
-        // NEW: Load Prodi Filter (Only for Direktorat, otherwise ignored by query)
+        // --- BAGIAN INI DIPERBARUI ---
+        // Load Prodi Filter (Untuk Direktorat DAN Pimpinan)
         const elProdi = document.getElementById("filterProdiRekapan");
         if (elProdi) {
-             if (STATE.role === 'direktorat') {
+             // Cek jika role adalah direktorat ATAU pimpinan
+             if (STATE.role === 'direktorat' || STATE.role === 'pimpinan') {
                  elProdi.innerHTML = '<option value="">Semua Unit</option>';
+                 
+                 // Pastikan STATE.allProdi sudah terisi sebelumnya
                  const prodiList = STATE.allProdi.filter(p => p.Role === 'prodi');
+                 
                  prodiList.sort((a, b) => a.ID_Prodi.localeCompare(b.ID_Prodi)).forEach(p => {
                      elProdi.innerHTML += `<option value="${p.ID_Prodi}">${p.ID_Prodi} - ${p.Nama_Prodi}</option>`;
                  });
-                 // Ensure the container is visible if this runs (relevant for mobile layouts)
+                 
+                 // Tampilkan container filter jika sebelumnya disembunyikan
                  if (elProdi.parentElement) elProdi.parentElement.style.display = 'block';
              } else {
-                 // Hide filter for Prodi role (他們只看自己的數據)
+                 // Sembunyikan filter untuk role 'prodi' (karena mereka hanya melihat data sendiri)
                  if (elProdi.parentElement) elProdi.parentElement.style.display = 'none';
              }
         }
-
+        // -----------------------------
 
     } catch (e) {
         console.error("Gagal memuat filter Rekapan Realisasi:", e);
     }
-} 
+}
 
 async function loadRekapanRealisasi() {
     showLoader(true);
@@ -2183,59 +2216,104 @@ async function initializeApp(userData) {
     document.body.classList.remove('login-view');
     document.getElementById('login-page-wrapper').style.display = 'none';
     document.getElementById('app-area').style.display = 'block';
-    document.getElementById('welcome').innerHTML = `<span class="badge bg-secondary me-2">${STATE.role.toUpperCase()}</span> <strong>${STATE.id} - ${userData.Nama_Prodi}</strong>`;
     
-    // 1. LOAD DATA PENGATURAN DARI SUPABASE
+    // Tampilan Badge User
+    let roleBadgeColor = STATE.role === 'pimpinan' ? 'bg-warning text-dark' : 'bg-secondary';
+    document.getElementById('welcome').innerHTML = `<span class="badge ${roleBadgeColor} me-2">${STATE.role.toUpperCase()}</span> <strong>${STATE.id} - ${userData.Nama_Prodi}</strong>`;
+    
     await loadGlobalSettings(); 
     await loadBeritaAcaraSettings();
-
-    // 2. UPDATE UI BERDASARKAN PENGATURAN (Bagian ini yang sebelumnya kurang lengkap)
     updatePerubahanUI(STATE.globalSettings); 
-    
-    // --> TAMBAHAN BARU: Tampilkan Pengumuman & Deadline Segera
     displayGlobalAnnouncement(); 
     updateDashboardDeadlineInfo();
     renderUserGuide(); 
-    // <-- AKHIR TAMBAHAN
 
-    const navItemAjuanAwal = document.getElementById('nav-item-ajuan-awal');
-    if (navItemAjuanAwal) navItemAjuanAwal.style.display = (STATE.globalSettings.Status_Ajuan_Perubahan === 'Dibuka') ? 'none' : 'block';
+    // --- LOGIKA HAK AKSES (ROLE MANAGEMENT) ---
     
-    const manageTabLink = document.getElementById('tab-manage-link');
-    if (manageTabLink) manageTabLink.style.display = STATE.role === 'direktorat' ? 'block' : 'none';
-    const logTabLink = document.getElementById('tab-log-link');
-    if (logTabLink) logTabLink.style.display = STATE.role === 'direktorat' ? 'block' : 'none';
-    const accountTabLink = document.getElementById('tab-pengaturan-akun-link');
-    if (accountTabLink) accountTabLink.style.display = STATE.role === 'prodi' ? 'block' : 'none';
+    // 1. Reset Tampilan Menu (Sembunyikan semua dulu)
+    const menusToHide = [
+        'nav-item-ajuan-awal', 'nav-item-ajuan-perubahan', // Buat Ajuan
+        'tab-manage-link', // Pengaturan Admin
+        'tab-log-link', // Log Aktivitas
+        'tab-pengaturan-akun-link', // Pengaturan Akun
+        'tab-berita-acara', // Berita Acara
+        'tab-matrix-semula-menjadi' // Matrix
+    ];
+    
+    // Helper untuk hide/show element by ID (bukan class/target)
+    // Perhatikan: ID di HTML Anda untuk Matrix adalah di <a> atau <li>, pastikan ID-nya benar.
+    // Di index.html Anda: Matrix ada di <li> tanpa ID spesifik, tapi punya target. 
+    // Kita anggap ID <li> nya 'tab-matrix-link' (Anda mungkin perlu tambahkan ID ini di HTML jika belum ada)
+    // Atau gunakan querySelector untuk target href.
+    
+    // Sembunyikan menu spesifik
+    const hideMenuByHref = (href) => {
+        const el = document.querySelector(`a[href="${href}"]`)?.parentElement;
+        if(el) el.style.display = 'none';
+    };
 
-    if (STATE.role === 'prodi') {
-      if (STATE.globalSettings.Status_Ajuan_Perubahan === 'Dibuka') {
-          STATE.currentAjuanType = `Perubahan ${STATE.globalSettings.Tahap_Perubahan_Aktif || 1}`;
-      } else {
-          STATE.currentAjuanType = 'Awal';
-      }
-      await updateProdiPaguInfo(userData);
+    if (STATE.role === 'pimpinan') {
+        // --- KONFIGURASI PIMPINAN ---
+        // Hide menu input & admin
+        hideMenuByHref('#tab-form-ajuan');
+        hideMenuByHref('#tab-manage');
+        hideMenuByHref('#tab-log');
+        hideMenuByHref('#tab-pengaturan-akun');
+        hideMenuByHref('#tab-berita-acara');
+        hideMenuByHref('#tab-matrix-semula-menjadi');
+        
+        // Show filter Unit di Dashboard
+        const dashFilter = document.getElementById('filterProdiDashboard');
+        if(dashFilter) dashFilter.style.display = 'inline-block';
 
-      ['filterProdiAwal', 'filterProdiPerubahan', 'filterProdiRPDAwal', 'filterProdiRPDPerubahan', 'filterProdiRealisasiAwal', 'filterProdiRealisasiPerubahan', 'filterProdiBA'].forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.style.display = 'none';
-      });
-      const direktoratCharts = document.getElementById('direktorat-charts');
-      if(direktoratCharts) direktoratCharts.style.display = 'none';
-      const baFilterGroup = document.getElementById('ba-filter-group-prodi');
-      if(baFilterGroup) baFilterGroup.style.display = 'none';
+        // Tampilkan filter prodi di tab lain
+        ['filterProdiAwal', 'filterProdiPerubahan', 'filterProdiRPDAwal', 'filterProdiRPDPerubahan', 'filterProdiRealisasiAwal', 'filterProdiRealisasiPerubahan'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'inline-block';
+        });
 
-    } else { // direktorat
-      ['filterProdiAwal', 'filterProdiPerubahan', 'filterProdiRPDAwal', 'filterProdiRPDPerubahan', 'filterProdiRealisasiAwal', 'filterProdiRealisasiPerubahan', 'filterProdiBA'].forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.style.display = 'block';
-      });
-      const direktoratCharts = document.getElementById('direktorat-charts');
-      if(direktoratCharts) direktoratCharts.style.display = 'block';
-      const baFilterGroup = document.getElementById('ba-filter-group-prodi');
-      if(baFilterGroup) baFilterGroup.style.display = 'block';
+        document.getElementById('direktorat-charts').style.display = 'block'; // Pimpinan melihat chart
+
+    } else if (STATE.role === 'prodi') {
+        // --- KONFIGURASI PRODI ---
+        if (STATE.globalSettings.Status_Ajuan_Perubahan === 'Dibuka') {
+            STATE.currentAjuanType = `Perubahan ${STATE.globalSettings.Tahap_Perubahan_Aktif || 1}`;
+        } else {
+            STATE.currentAjuanType = 'Awal';
+        }
+        await updateProdiPaguInfo(userData);
+
+        // Hide filter prodi (karena hanya lihat data sendiri)
+        ['filterProdiAwal', 'filterProdiPerubahan', 'filterProdiRPDAwal', 'filterProdiRPDPerubahan', 'filterProdiRealisasiAwal', 'filterProdiRealisasiPerubahan', 'filterProdiBA', 'filterProdiDashboard'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+        
+        document.getElementById('direktorat-charts').style.display = 'none';
+        const accountLink = document.getElementById('tab-pengaturan-akun-link');
+        if(accountLink) accountLink.style.display = 'block';
+
+        // Logika Menu Ajuan
+        const navAwal = document.getElementById('nav-item-ajuan-awal');
+        if(navAwal) navAwal.style.display = (STATE.globalSettings.Status_Ajuan_Perubahan === 'Dibuka') ? 'none' : 'block';
+
+    } else { 
+        // --- KONFIGURASI DIREKTORAT ---
+        // Show filter prodi
+        ['filterProdiAwal', 'filterProdiPerubahan', 'filterProdiRPDAwal', 'filterProdiRPDPerubahan', 'filterProdiRealisasiAwal', 'filterProdiRealisasiPerubahan', 'filterProdiBA', 'filterProdiDashboard'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'inline-block';
+        });
+        document.getElementById('direktorat-charts').style.display = 'block';
+        
+        // Show Admin Menus
+        const manageLink = document.getElementById('tab-manage-link');
+        if(manageLink) manageLink.style.display = 'block';
+        const logLink = document.getElementById('tab-log-link');
+        if(logLink) logLink.style.display = 'block';
     }
     
+    // Buka Dashboard Default
     const dashboardTabTrigger = document.querySelector('[data-bs-target="#tab-dashboard"]');
     if (dashboardTabTrigger) {
         const tab = bootstrap.Tab.getOrCreateInstance(dashboardTabTrigger);
@@ -2251,7 +2329,8 @@ async function initializeApp(userData) {
 
     loadRekapanRealisasi(); 
 
-    ['filterTahunDashboard', 'filterTipeDashboard'].forEach(id => {
+    // Listener Dashboard Filters
+    ['filterTahunDashboard', 'filterTipeDashboard', 'filterProdiDashboard'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('change', () => {
             STATE.cachedDashboardData = []; 
@@ -3032,56 +3111,52 @@ async function loadInitialData() {
   }
 
  // --- PERBAIKAN: refreshProdiData (Role-Aware) ---
-  async function refreshProdiData() {
-      const cacheKey = 'cache_allProdi';
-      
-      // Hapus cache lama untuk memastikan data bersih
-      localStorage.removeItem(cacheKey);
+async function refreshProdiData() {
+    const cacheKey = 'cache_allProdi';
+    localStorage.removeItem(cacheKey);
 
-      console.log("Mengambil data Prodi dari FIRESTORE (Role-Aware).");
-      
-      try {
-          let prodiList = [];
+    try {
+        let prodiList = [];
 
-          // LOGIKA UTAMA: Cek Role
-          if (STATE.role === 'direktorat') {
-              // HANYA Direktorat yang boleh ambil semua user
-              const prodiSnapshot = await db.collection('users').get();
-              prodiList = prodiSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
-          } else {
-              // Prodi HANYA menggunakan data dirinya sendiri (dari sesi login)
-              // Ini mencegah error "Missing Permissions"
-              if (STATE.currentUserData) {
-                  prodiList = [{
-                      uid: STATE.uid,
-                      ...STATE.currentUserData
-                  }];
-              } else {
-                  // Fallback jika currentUserData belum siap
-                  const doc = await db.collection('users').doc(STATE.uid).get();
-                  if (doc.exists) {
-                      prodiList = [{ uid: doc.id, ...doc.data() }];
-                  }
-              }
-          }
+        // MODIFIKASI: Pimpinan diperlakukan sama seperti Direktorat dalam hal fetch users
+        if (STATE.role === 'direktorat' || STATE.role === 'pimpinan') {
+            const prodiSnapshot = await db.collection('users').get();
+            prodiList = prodiSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+        } else {
+            // Prodi logic...
+            if (STATE.currentUserData) {
+                prodiList = [{ uid: STATE.uid, ...STATE.currentUserData }];
+            } else {
+                const doc = await db.collection('users').doc(STATE.uid).get();
+                if (doc.exists) prodiList = [{ uid: doc.id, ...doc.data() }];
+            }
+        }
+        
+        STATE.allProdi = prodiList;
+        setCache(cacheKey, STATE.allProdi, 120); 
+        
+        // Populate Filters
+        if (STATE.role === 'direktorat' || STATE.role === 'pimpinan') {
+            const listProdiOnly = STATE.allProdi.filter(p => p.Role === 'prodi');
+            // Tambahkan ID filterProdiDashboard
+            const filterIds = [
+                'filterProdiAwal', 'filterProdiPerubahan', 
+                'filterProdiRPDAwal', 'filterProdiRPDPerubahan', 
+                'filterProdiRealisasiAwal', 'filterProdiRealisasiPerubahan', 
+                'filterProdiBA', 'filterProdiDashboard'
+            ];
+            filterIds.forEach(id => populateProdiFilter(listProdiOnly, id));
+            
+            // Populate list manajemen hanya untuk Direktorat
+            if (STATE.role === 'direktorat' && typeof populateProdiList === 'function') {
+                populateProdiList(STATE.allProdi);
+            }
+        }
 
-          // Update State & Cache
-          STATE.allProdi = prodiList;
-          setCache(cacheKey, STATE.allProdi, 120); 
-          
-          // Update UI List (Hanya jika Direktorat)
-          if (STATE.role === 'direktorat' && typeof populateProdiList === 'function') { 
-              populateProdiList(STATE.allProdi); 
-          }
-
-      } catch (e) {
-          console.error("Gagal mengambil data Prodi:", e);
-          // Jangan tampilkan toast error jika permission denied agar user tidak bingung
-          if (e.code !== 'permission-denied') {
-             showToast("Gagal memuat data pengguna.", "danger");
-          }
-      }
-  }
+    } catch (e) {
+        console.error("Gagal mengambil data Prodi", e);
+    }
+}
   // --- OPTIMIZATION END ---
 
   function populateKelompok(list, selectId) { 
@@ -3276,6 +3351,16 @@ function validateSubmissionDeadline(tipeAjuan) {
       html += `</div>`;
       return html;
   }
+   // --- TAMBAHAN: PIMPINAN TIDAK PUNYA AKSI ---
+    if (STATE.role === 'pimpinan') {
+        // Hanya tampilkan tombol History & Komentar (Read Only)
+        let html = `<div class="btn-group btn-group-sm" role="group">`;
+        html += `<button class="btn btn-outline-secondary" onclick="window.openHistoryModal('${r.ID_Ajuan}', '${escapeHtml(r.Nama_Ajuan)}')"><i class="bi bi-clock-history"></i></button>`;
+        html += `<button class="btn btn-outline-info" onclick="window.openKomentarModal('${r.ID_Ajuan}', '${escapeHtml(r.Nama_Ajuan)}')" title="Lihat Komentar"><i class="bi bi-chat-dots"></i></button>`;
+        html += `</div>`;
+        return html;
+    }
+    // ------------------------------------------
 
   // ------------------------------------------------------------------
   // --- END RENDER ACTIONS HELPER ---
@@ -4265,12 +4350,12 @@ const selisih = totalBaru - totalLama;
             .eq('Status', 'Diterima')
             .eq('Tipe_Ajuan', tipe);
         
-        if (STATE.role === 'direktorat') {
-            const prodiFilter = getSafeValue(filterProdiId);
-            if (prodiFilter) query = query.eq('ID_Prodi', prodiFilter);
-        } else {
-            query = query.eq('ID_Prodi', STATE.id);
-        }
+        if (STATE.role === 'direktorat' || STATE.role === 'pimpinan') {
+    const prodiFilter = getSafeValue(filterProdiId);
+    if (prodiFilter) query = query.eq('ID_Prodi', prodiFilter);
+} else {
+    query = query.eq('ID_Prodi', STATE.id);
+}
         
         const { data: rawData, error } = await query;
         if (error) throw error;
@@ -4301,9 +4386,10 @@ const selisih = totalBaru - totalLama;
     if (!container) return;
     if (data.length === 0) { container.innerHTML = '<div class="text-center text-muted p-5">Tidak ada ajuan diterima dan tidak diblokir.</div>'; return; } 
     
-    const isDirektorat = STATE.role === 'direktorat'; 
-    const readOnlyAttr = isDirektorat ? 'readonly' : ''; 
-    const disabledBtnClass = isDirektorat ? 'disabled' : ''; 
+    const isReadOnlyRole = (STATE.role === 'direktorat' || STATE.role === 'pimpinan');
+const readOnlyAttr = isReadOnlyRole ? 'readonly' : ''; 
+const disabledBtnClass = isReadOnlyRole ? 'disabled' : ''; 
+const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; // Sembunyikan tombol simpan sepenuhnya untuk pimpinan 
     
     // ADJUSTED HEADER MIN-WIDTHS FOR BETTER SCALING
     let tableHeader = `<tr class="table-light"><th rowspan="2" class="align-middle">ID</th>${isDirektorat ? '<th rowspan="2" class="align-middle">Unit</th>' : ''}<th rowspan="2" class="align-middle" style="min-width: 200px;">Rincian</th><th rowspan="2" class="align-middle text-end" style="min-width: 100px;">Total Diterima</th><th colspan="12" class="text-center">Rencana Penarikan Dana per Bulan (Rp)</th><th rowspan="2" class="align-middle text-end" style="min-width: 100px;">Total RPD</th><th rowspan="2" class="align-middle text-end" style="min-width: 100px;">Sisa</th><th rowspan="2" class="align-middle text-center action-buttons" style="min-width: 70px;">Aksi</th></th></tr><tr class="table-light">${RPD_MONTHS.map(m => `<th class="text-center" style="min-width: 75px;">${m}</th>`).join('')}</tr>`; 
@@ -4398,10 +4484,10 @@ const selisih = totalBaru - totalLama;
     const container = document.getElementById(`tableRealisasi${tipe}`); 
     if (!container) return;
     if (data.length === 0) { container.innerHTML = '<div class="text-center text-muted p-5">Tidak ada ajuan diterima dan tidak diblokir.</div>'; return; } 
-    const isDirektorat = STATE.role === 'direktorat'; 
-    const readOnlyAttr = isDirektorat ? 'readonly' : ''; 
-    const disabledBtnClass = isDirektorat ? 'disabled' : ''; 
-    
+    const isReadOnlyRole = (STATE.role === 'direktorat' || STATE.role === 'pimpinan');
+const readOnlyAttr = isReadOnlyRole ? 'readonly' : ''; 
+const disabledBtnClass = isReadOnlyRole ? 'disabled' : ''; 
+const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; // Sembunyikan tombol simpan sepenuhnya untuk pimpinan
     // ADJUSTED HEADER MIN-WIDTHS FOR BETTER SCALING
     let tableHeader = `<tr class="table-light"><th rowspan="2" class="align-middle">ID</th>${isDirektorat ? '<th rowspan="2" class="align-middle">Unit</th>' : ''}<th rowspan="2" class="align-middle" style="min-width: 200px;">Rincian</th><th rowspan="2" class="align-middle text-end" style="min-width: 100px;">Total RPD</th><th colspan="12" class="text-center">Realisasi Penarikan Dana per Bulan (Rp)</th><th rowspan="2" class="align-middle text-end" style="min-width: 100px;">Total Realisasi</th><th rowspan="2" class="align-middle text-center action-buttons" style="min-width: 70px;">Aksi</th></tr><tr class="table-light">${RPD_MONTHS.map(m => `<th class="text-center" style="min-width: 75px;">${m}</th>`).join('')}</tr>`; 
     
@@ -4935,92 +5021,62 @@ const selisih = totalBaru - totalLama;
 
 
   // --- OPTIMIZED: loadDashboardData (MODIFIED FOR MULTI-TABLE AGGREGATION) ---
-// --- OPTIMIZED: loadDashboardData (ACTIVE PHASE ONLY) ---
 async function loadDashboardData(forceRefresh = false) { 
   showLoader(true); 
 
   try {
     const selectedYear = getSafeValue('filterTahunDashboard');
-    const selectedTipe = getSafeValue('filterTipeDashboard'); // Filter manual dropdown
+    const selectedTipe = getSafeValue('filterTipeDashboard'); 
     
-    // Tentukan Tahap Aktif Aplikasi
+    // TAMBAHAN: Ambil filter unit khusus dashboard
+    const selectedProdi = getSafeValue('filterProdiDashboard');
+
+    // Tentukan Tahap Aktif
     const isPerubahanOpen = STATE.globalSettings.Status_Ajuan_Perubahan === 'Dibuka';
     const tahapAktif = STATE.globalSettings.Tahap_Perubahan_Aktif || 1;
     const activePhaseLabel = isPerubahanOpen ? `Perubahan ${tahapAktif}` : 'Awal';
     const activeTableName = getAjuanTableName(activePhaseLabel);
 
-// Di dalam fungsi loadDashboardData()
+    // MODE PIMPINAN / DIREKTORAT (SUMMARY VIEW)
+    // Jika tidak ada filter tahun & tipe, gunakan mode ringkasan tabel prodi_summary
+    const isSummaryMode = (STATE.role === 'direktorat' || STATE.role === 'pimpinan') && !selectedYear && !selectedTipe;
 
-// 1. Subscribe KHUSUS ke baris summary milik Prodi yang login (jika role prodi)
-// Atau subscribe ke semua jika role Direktorat
-const filterConfig = STATE.role === 'prodi' 
-    ? { event: '*', schema: 'public', table: 'prodi_summary', filter: `id_prodi=eq.${STATE.id}` }
-    : { event: '*', schema: 'public', table: 'prodi_summary' };
-
-const dashboardSubscription = sb
-  .channel('dashboard-live')
-  .on('postgres_changes', filterConfig, (payload) => {
-      // Payload hanya berisi data kecil yang berubah, bukan seluruh tabel!
-      console.log('Perubahan data terdeteksi:', payload);
-      
-      // Update UI lokal secara instan tanpa fetch ulang dari server
-      updateDashboardUI(payload.new); 
-  })
-  .subscribe();
-
-    // MODE 1: DIREKTORAT SUMMARY (Fast View)
-    const isDirectorateSummaryMode = STATE.role === 'direktorat' && !selectedYear && !selectedTipe;
-
-    if (isDirectorateSummaryMode) {
+    if (isSummaryMode) {
         if (forceRefresh || STATE.direktoratSummaryData.length === 0) {
-            const { data: summaryData, error: summaryError } = await sb
+            let query = sb
                 .from(PRODI_SUMMARY_TABLE)
-                // Hanya ambil kolom yang dipakai untuk perhitungan kartu & tabel ringkasan
-.select(`
-    id_prodi, 
-    pagu_awal_ceiling, 
-    total_diterima_awal_bersih, 
-    total_diterima_final_bersih, 
-    total_rpd_commitment, 
-    total_realisasi_overall,
-    rpd_monthly,      
-    realisasi_monthly 
-`); 
+                .select(`id_prodi, pagu_awal_ceiling, total_diterima_awal_bersih, total_diterima_final_bersih, total_rpd_commitment, total_realisasi_overall, rpd_monthly, realisasi_monthly`);
+            
+            // FILTER PENTING UNTUK PIMPINAN:
+            if (selectedProdi) {
+                query = query.eq('id_prodi', selectedProdi);
+            }
 
+            const { data: summaryData, error: summaryError } = await query;
             if (summaryError) throw summaryError;
             STATE.direktoratSummaryData = summaryData || [];
         }
-        STATE.allDashboardData = []; 
+        STATE.allDashboardData = []; // Clear detailed data
         
     } else {
-        // MODE 2: DETAILED VIEW (Active Table Only)
-        // Jika user tidak memilih filter tipe, load HANYA tabel aktif.
-        // Jika user memilih filter, load tabel sesuai filter.
-
+        // MODE DETAIL (Tabel Ajuan Aktif)
         let targetTable = activeTableName;
         let targetLabel = activePhaseLabel;
 
-        if (selectedTipe) {
-            // Jika user memilih filter manual (misal ingin lihat history Awal saat di Perubahan)
-            if (selectedTipe === 'Awal') {
-                targetTable = 'ajuan';
-                targetLabel = 'Awal';
-            } else if (selectedTipe === 'Perubahan') {
-                // Asumsi filter "Perubahan" mengarah ke perubahan aktif
-                // (Jika ingin detail per perubahan 1, 2, 3, dropdown filter perlu diupdate opsinya)
-                targetTable = getAjuanTableName(`Perubahan ${tahapAktif}`);
-                targetLabel = `Perubahan ${tahapAktif}`;
-            }
-        }
+        if (selectedTipe === 'Awal') { targetTable = 'ajuan'; targetLabel = 'Awal'; }
+        else if (selectedTipe === 'Perubahan') { targetTable = getAjuanTableName(`Perubahan ${tahapAktif}`); targetLabel = `Perubahan ${tahapAktif}`; }
         
         if (forceRefresh || STATE.cachedDashboardData.length === 0) { 
             STATE.allDashboardData = [];
-
             let query = sb.from(targetTable)
                .select(`ID_Ajuan, ID_Prodi, Total, Status, Tipe_Ajuan, Timestamp, Is_Blocked, ${RPD_SELECT_COLUMNS}`);
 
+             // Filter Logic
              if (STATE.role === 'prodi') {
                  query = query.eq('ID_Prodi', STATE.id); 
+             } else if ((STATE.role === 'direktorat' || STATE.role === 'pimpinan') && selectedProdi) {
+                 // Pimpinan memfilter berdasarkan dropdown
+                 query = query.eq('ID_Prodi', selectedProdi);
              }
             
              if (selectedYear) {
@@ -5030,7 +5086,6 @@ const dashboardSubscription = sb
              }
 
              const { data: rawData, error } = await query;
-             
              if (!error && rawData) {
                  const processedData = rawData.map(data => {
                     if (data.Timestamp) data.Timestamp = new Date(data.Timestamp); 
@@ -5043,9 +5098,7 @@ const dashboardSubscription = sb
              }
             STATE.cachedDashboardData = STATE.allDashboardData;  
         } else {
-            if (STATE.cachedDashboardData.length > 0) {
-                STATE.allDashboardData = STATE.cachedDashboardData;
-            }
+            if (STATE.cachedDashboardData.length > 0) STATE.allDashboardData = STATE.cachedDashboardData;
         }
     }
     
@@ -5173,11 +5226,37 @@ const dashboardSubscription = sb
       const paguCard = document.getElementById('dashboard-total-pagu-card');
       const rpdCard = document.getElementById('card-rpd-realisasi');
       const direktoratCharts = document.getElementById('direktorat-charts');
+      const statusCards = document.getElementById('direktorat-status-cards-container');
+      const tableContainer = document.getElementById('direktorat-summary-table-container');
       
-      const isDirectorateSummaryMode = STATE.role === 'direktorat' && !selectedYear && !selectedTipe;
+      const isDirectorateSummaryMode = (STATE.role === 'direktorat' || STATE.role === 'pimpinan') && !selectedYear && !selectedTipe;
 
-      if (isDirectorateSummaryMode) {
-          // Mode ringkasan Direktorat: Sembunyikan kartu agregat total
+      // --- LOGIKA TAMPILAN KHUSUS PIMPINAN ---
+      if (STATE.role === 'pimpinan') {
+          // 1. SEMBUNYIKAN Kartu Status Anggaran, Diajukan, Diterima
+          if (diajukanCard) diajukanCard.style.display = 'none';
+          if (diterimaCard) diterimaCard.style.display = 'none';
+          if (paguCard) paguCard.style.display = 'none'; 
+
+          // 2. TAMPILKAN Grafik RPD vs Realisasi & Ringkasan Triwulan/Semester
+          // (Konten ini berada di dalam rpdCard)
+          if (rpdCard) {
+              rpdCard.style.display = 'block';
+              rpdCard.classList.remove('col-xl-3', 'col-md-6');
+              rpdCard.classList.add('col-12'); // Full width agar grafik jelas
+              
+              // Opsional: Sembunyikan teks Total Angka RPD/Realisasi di atas chart jika hanya ingin grafik
+              // const totalTextContainer = rpdCard.querySelector('.d-flex.justify-content-between'); // Sesuaikan selector HTML
+              // if (totalTextContainer) totalTextContainer.style.display = 'none';
+          }
+          
+          if (direktoratCharts) direktoratCharts.style.display = 'block';
+          
+          // Sembunyikan kartu status kecil (warna-warni) jika ada, agar fokus ke Tabel
+          if (statusCards) statusCards.style.display = 'none';
+
+      } else if (isDirectorateSummaryMode) {
+          // Mode ringkasan Direktorat (Tanpa Filter)
           if (diajukanCard) diajukanCard.style.display = 'none';
           if (diterimaCard) diterimaCard.style.display = 'none';
           if (paguCard) paguCard.style.display = 'none'; 
@@ -5187,39 +5266,40 @@ const dashboardSubscription = sb
               rpdCard.classList.add('col-12'); 
           }
           if (direktoratCharts) direktoratCharts.style.display = 'block';
+          if (statusCards) statusCards.style.display = 'flex'; // Tampilkan kartu status prodi
 
       } else { 
-          // Mode Prodi atau Direktorat dengan Filter Waktu/Tipe: Tampilkan kartu agregat
+          // Mode Prodi atau Direktorat dengan Filter Waktu/Tipe: Tampilkan kartu agregat lengkap
           if (diajukanCard) diajukanCard.style.display = 'block';
           if (diterimaCard) diterimaCard.style.display = 'block';
-          
-          // Pagu card hanya relevan untuk Prodi atau Direk (ketika filter OFF, diatur di renderDashboardSummary)
-          if (paguCard) {
-              paguCard.style.display = 'block'; 
-          }
+          if (paguCard) paguCard.style.display = 'block'; 
           
           if (rpdCard) {
               rpdCard.classList.remove('col-12');
               rpdCard.classList.add('col-xl-3', 'col-md-6');
           }
-          // Jika ada filter, chart detail muncul, status card/tabel ringkasan unit dinonaktifkan
           if (direktoratCharts) direktoratCharts.style.display = STATE.role === 'direktorat' ? 'block' : 'none';
       }
       
       renderDashboardSummary(filteredData); 
       
-      if (STATE.role === 'direktorat') { 
-          if (isDirectorateSummaryMode) {
-               // Hanya render tabel ringkasan jika tidak ada filter waktu/tipe
+      // --- LOGIKA RENDER TABEL RINGKASAN UNIT ---
+      if (STATE.role === 'direktorat' || STATE.role === 'pimpinan') { 
+          // Pimpinan SELALU melihat tabel ringkasan unit (baik ada filter maupun tidak)
+          // Direktorat hanya melihat tabel saat mode summary (tanpa filter)
+          
+          if (STATE.role === 'pimpinan' || isDirectorateSummaryMode) {
+               // Render tabel ringkasan unit
+               // Note: Jika Pimpinan memakai filter, data summary ini idealnya juga terfilter.
+               // Namun karena struktur data 'direktoratSummaryData' adalah snapshot statis, 
+               // kita tampilkan apa adanya atau filter manual di client side jika diperlukan.
+               // Untuk saat ini kita tampilkan summary data global.
               renderDirektoratDashboard(STATE.direktoratSummaryData); 
+              if (tableContainer) tableContainer.style.display = 'block';
           } else {
-              // Jika ada filter, tampilkan chart dan status count berdasarkan filteredData
-              // Hapus tabel ringkasan yang tidak relevan
-              const container = document.getElementById('direktorat-summary-table-container');
-              if (container) container.innerHTML = '';
-              const statusCards = document.getElementById('direktorat-status-cards-container');
+              // Jika Direktorat pakai filter -> Sembunyikan tabel ringkasan unit, fokus ke detail data
+              if (tableContainer) tableContainer.innerHTML = '';
               if (statusCards) statusCards.innerHTML = '<div class="col-12"><p class="text-center text-muted small">Tabel ringkasan per unit dinonaktifkan saat filter waktu atau tipe ajuan diterapkan.</p></div>';
-
           }
       } 
   }
@@ -7232,6 +7312,7 @@ window.refreshProdiData = async function() {
         }
     }
 };
+
 });
 /* --- END PATCH --- */
     
