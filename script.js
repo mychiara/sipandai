@@ -1623,221 +1623,629 @@ async function loadBeritaAcaraSettings() {
     }
 }
 /**
- * Merender Petunjuk Penggunaan berdasarkan Role (Prodi/Direktorat)
+ * Merender Petunjuk Penggunaan berdasarkan Role (Prodi / Direktorat / Pimpinan)
  */
 function renderUserGuide() {
     const container = document.getElementById('petunjuk-content-area');
     if (!container) return;
 
-    const role = STATE.role; // 'prodi' atau 'direktorat'
+    const role = STATE.role;
     let htmlContent = '';
 
+    /* ============================================================
+       1.  P A N D U A N    R O L E :   P R O D I
+       ============================================================ */
     if (role === 'prodi') {
-        // --- KONTEN PANDUAN UNTUK PRODI / UNIT ---
+
         htmlContent = `
-        <div class="accordion" id="accordionPanduanProdi">
-            
-            <div class="alert alert-info d-flex align-items-center">
-                <i class="bi bi-info-circle-fill fs-4 me-3"></i>
-                <div>
-                    <strong>Selamat Datang, ${STATE.id}!</strong><br>
-                    Panduan ini menjelaskan alur kerja pengajuan anggaran mulai dari perencanaan hingga realisasi.
+        <div class="premium-guide">
+
+    <!-- HEADER -->
+    <div class="alert alert-info shadow-sm border rounded d-flex align-items-center p-3 mb-4">
+        <div class="me-3">
+            <i class="bi bi-mortarboard-fill fs-1 text-primary"></i>
+        </div>
+        <div>
+            <h5 class="fw-bold mb-1">Panduan Pengguna – Unit / Prodi</h5>
+            <div class="small">Alur lengkap penyusunan anggaran: Ajuan → Review → RPD → Realisasi → Laporan</div>
+        </div>
+    </div>
+
+    <!-- VISUAL POINTER / ILLUSTRATION -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 rounded-3 guide-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-pencil-square fs-1 text-primary mb-2"></i>
+                    <h6 class="fw-bold">Buat Ajuan</h6>
+                    <p class="small text-muted">Isi detail kebutuhan kegiatan dan operasional.</p>
                 </div>
             </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 rounded-3 guide-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-calendar-check fs-1 text-success mb-2"></i>
+                    <h6 class="fw-bold">Isi RPD Bulanan</h6>
+                    <p class="small text-muted">Susun rencana penarikan dana sesuai kebutuhan waktu.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 rounded-3 guide-card">
+                <div class="card-body text-center">
+                    <i class="bi bi-graph-up-arrow fs-1 text-warning mb-2"></i>
+                    <h6 class="fw-bold">Input Realisasi</h6>
+                    <p class="small text-muted">Laporkan progres penggunaan dana secara berkala.</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
-            <!-- 1. Pengajuan Anggaran -->
-            <div class="accordion-item">
-                <h2 class="accordion-header" id="headingOne">
-                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne">
-                        <strong>1. Cara Melakukan Pengajuan Anggaran (Awal & Perubahan)</strong>
-                    </button>
-                </h2>
-                <div id="collapseOne" class="accordion-collapse collapse show" data-bs-parent="#accordionPanduanProdi">
-                    <div class="accordion-body">
-                        <ol>
-                            <li>Pilih menu <strong>Formulir Ajuan</strong> (Awal atau Perubahan sesuai tahap aktif).</li>
-                            <li>Isi form <strong>Rincian Ajuan</strong> (Grub Belanja, Kelompok, Judul, Rincian, Volume, Harga).</li>
-                            <li>Klik tombol <strong><i class="bi bi-plus-circle"></i> Tambahkan ke Daftar Sementara</strong>. Item akan masuk ke tabel bawah.</li>
-                            <li>Ulangi langkah tersebut untuk item lain. Perhatikan <strong>Info Pagu Anggaran</strong> di atas agar tidak melebihi batas.</li>
-                            <li>Jika sudah selesai, klik tombol <strong><i class="bi bi-send"></i> Kirim Semua Ajuan</strong> untuk mengirim ke Direktorat.</li>
-                            <li>Alternatif: Gunakan fitur <strong>Import Excel</strong> untuk mengupload banyak data sekaligus (Download template terlebih dahulu).</li>
-                        </ol>
+    <!-- ACCORDION -->
+    <div class="accordion" id="accordionProdiPremium">
+
+        <!-- 1. Ajuan -->
+        <div class="accordion-item shadow-sm border-0 rounded mb-3">
+            <h2 class="accordion-header">
+                <button class="accordion-button fw-bold" data-bs-toggle="collapse" data-bs-target="#pp1">
+                    <i class="bi bi-file-earmark-plus me-2 text-primary"></i> 1. Membuat Ajuan Anggaran
+                </button>
+            </h2>
+            <div id="pp1" class="accordion-collapse collapse show">
+                <div class="accordion-body">
+                    <p class="fw-semibold">Langkah lengkap:</p>
+                    <ol class="pointer-list">
+                        <li><i class="bi bi-caret-right-fill text-primary"></i> Buka menu <strong>Formulir Ajuan</strong>.</li>
+                        <li><i class="bi bi-caret-right-fill text-primary"></i> Lengkapi grub belanja, kelompok, judul kegiatan, rincian, dan harga.</li>
+                        <li><i class="bi bi-caret-right-fill text-primary"></i> Klik <strong>Tambahkan ke Daftar Sementara</strong>.</li>
+                        <li><i class="bi bi-caret-right-fill text-primary"></i> Kirim semua ajuan menggunakan tombol <strong>Kirim Semua Ajuan</strong>.</li>
+                        <li><i class="bi bi-upload text-primary"></i> Gunakan <strong>Import Excel</strong> untuk banyak item sekaligus.</li>
+                    </ol>
+
+                    <div class="alert alert-warning mt-3">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        Pastikan total ajuan tidak melebihi <strong>Pagu Unit</strong>.
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- 2. Memantau Status & Perbaikan -->
-            <div class="accordion-item">
-                <h2 class="accordion-header" id="headingTwo">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo">
-                        <strong>2. Memantau Status & Melakukan Revisi</strong>
-                    </button>
-                </h2>
-                <div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#accordionPanduanProdi">
-                    <div class="accordion-body">
+        <!-- 2. Status -->
+        <div class="accordion-item shadow-sm border-0 rounded mb-3">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-bold" data-bs-toggle="collapse" data-bs-target="#pp2">
+                    <i class="bi bi-clipboard-check me-2 text-success"></i> 2. Memantau Status Ajuan
+                </button>
+            </h2>
+            <div id="pp2" class="accordion-collapse collapse">
+                <div class="accordion-body">
+                    <div class="status-guide">
+                        <p class="fw-semibold mb-2">Arti status:</p>
                         <ul>
-                            <li>Buka menu <strong>Daftar Ajuan</strong>.</li>
-                            <li>Lihat kolom <strong>Status</strong>:
-                                <ul>
-                                    <li><span class="badge bg-secondary">Menunggu Review</span>: Sedang diperiksa Direktorat.</li>
-                                    <li><span class="badge bg-warning text-dark">Revisi</span>: Perlu perbaikan. Klik tombol <i class="bi bi-pencil"></i> (Edit), perbaiki data/catatan, lalu Simpan.</li>
-                                    <li><span class="badge bg-success">Diterima</span>: Ajuan disetujui.</li>
-                                    <li><span class="badge bg-danger">Ditolak</span>: Ajuan tidak disetujui.</li>
-                                </ul>
-                            </li>
-                            <li>Gunakan tombol <i class="bi bi-chat-dots"></i> untuk berdiskusi/chat dengan reviewer.</li>
+                            <li><span class="badge bg-secondary">Menunggu Review</span> → Sedang diperiksa.</li>
+                            <li><span class="badge bg-warning text-dark">Revisi</span> → Perbaiki sesuai catatan reviewer.</li>
+                            <li><span class="badge bg-success">Diterima</span> → Disetujui.</li>
+                            <li><span class="badge bg-danger">Ditolak</span> → Tidak lolos penilaian.</li>
                         </ul>
+
+                        <div class="alert alert-info mt-3">
+                            <i class="bi bi-chat-dots"></i> Gunakan fitur <strong>Komentar</strong> untuk diskusi dengan Direktorat.
+                        </div>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- 3. RPD (Rencana Penarikan Dana) -->
-            <div class="accordion-item">
-                <h2 class="accordion-header" id="headingThree">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree">
-                        <strong>3. Mengisi RPD (Rencana Penarikan Dana)</strong>
-                    </button>
-                </h2>
-                <div id="collapseThree" class="accordion-collapse collapse" data-bs-parent="#accordionPanduanProdi">
-                    <div class="accordion-body">
-                        <p>Setelah ajuan berstatus <strong>Diterima</strong>, Anda wajib mengisi RPD:</p>
-                        <ol>
-                            <li>Buka menu <strong>RPD</strong>.</li>
-                            <li>Sistem menampilkan daftar barang yang disetujui.</li>
-                            <li>Isi kolom <strong>Jan - Des</strong> sesuai rencana pembelanjaan.</li>
-                            <li>Pastikan kolom <strong>Sisa</strong> bernilai 0 (Total RPD = Total Diterima).</li>
-                            <li>Klik tombol <i class="bi bi-save"></i> <strong>Simpan</strong> di sebelah kanan setiap baris.</li>
-                        </ol>
+        <!-- 3. RPD -->
+        <div class="accordion-item shadow-sm border-0 rounded mb-3">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-bold" data-bs-toggle="collapse" data-bs-target="#pp3">
+                    <i class="bi bi-calendar-event me-2 text-warning"></i> 3. Mengisi Rencana Penarikan Dana (RPD)
+                </button>
+            </h2>
+            <div id="pp3" class="accordion-collapse collapse">
+                <div class="accordion-body">
+                    <ol>
+                        <li>Buka halaman <strong>RPD</strong>.</li>
+                        <li>Isi nilai Januari–Desember.</li>
+                        <li><span class="text-success fw-bold">Sisa = 0 wajib</span> sebelum simpan.</li>
+                        <li>Simpan per baris menggunakan tombol <strong>Simpan</strong>.</li>
+                    </ol>
+
+                    <div class="alert alert-secondary mt-3">
+                        <i class="bi bi-lightbulb"></i> Tips:
+                        RPD yang rapi memudahkan penjadwalan pencairan dana.
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- 4. Realisasi -->
-            <div class="accordion-item">
-                <h2 class="accordion-header" id="headingFour">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFour">
-                        <strong>4. Melaporkan Realisasi Anggaran</strong>
-                    </button>
-                </h2>
-                <div id="collapseFour" class="accordion-collapse collapse" data-bs-parent="#accordionPanduanProdi">
-                    <div class="accordion-body">
-                        <ol>
-                            <li>Buka menu <strong>Realisasi</strong>.</li>
-                            <li>Isi nominal realisasi pada bulan yang bersangkutan ketika dana telah cair/dibelanjakan.</li>
-                            <li>Klik tombol <i class="bi bi-save"></i> <strong>Simpan</strong>.</li>
-                            <li>Grafik di Dashboard akan otomatis terupdate membandingkan RPD vs Realisasi.</li>
-                        </ol>
+        <!-- 4. Realisasi -->
+        <div class="accordion-item shadow-sm border-0 rounded mb-3">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-bold" data-bs-toggle="collapse" data-bs-target="#pp4">
+                    <i class="bi bi-graph-down-arrow me-2 text-danger"></i> 4. Melaporkan Realisasi Anggaran
+                </button>
+            </h2>
+            <div id="pp4" class="accordion-collapse collapse">
+                <div class="accordion-body">
+                    <ol>
+                        <li>Buka halaman <strong>Realisasi</strong>.</li>
+                        <li>Masukkan nilai realisasi ketika dana digunakan.</li>
+                        <li>Klik <strong>Simpan</strong>.</li>
+                    </ol>
+
+                    <div class="alert alert-success mt-3">
+                        <i class="bi bi-bar-chart"></i>
+                        Dashboard akan menampilkan progres serapan secara otomatis.
                     </div>
                 </div>
             </div>
-            
-             <!-- 5. Cetak & Berita Acara -->
-            <div class="accordion-item">
-                <h2 class="accordion-header" id="headingFive">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFive">
-                        <strong>5. Mencetak Laporan & Berita Acara</strong>
-                    </button>
-                </h2>
-                <div id="collapseFive" class="accordion-collapse collapse" data-bs-parent="#accordionPanduanProdi">
-                    <div class="accordion-body">
-                        <ul>
-                            <li>Gunakan tombol <strong>Export Excel / PDF / Print</strong> yang tersedia di atas setiap tabel (Daftar Ajuan, RPD, Realisasi).</li>
-                            <li>Untuk mencetak Berita Acara penetapan anggaran, buka tab <strong>Berita Acara</strong>.</li>
-                            <li>Pastikan <strong>Pengaturan Akun</strong> (Nama & Jabatan TTD) sudah diisi agar tercetak di laporan.</li>
-                        </ul>
-                    </div>
+        </div>
+
+        <!-- 5. Laporan -->
+        <div class="accordion-item shadow-sm border-0 rounded mb-3">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-bold" data-bs-toggle="collapse" data-bs-target="#pp5">
+                    <i class="bi bi-printer me-2 text-dark"></i> 5. Export Laporan & Berita Acara
+                </button>
+            </h2>
+            <div id="pp5" class="accordion-collapse collapse">
+                <div class="accordion-body">
+                    <ul>
+                        <li>Gunakan tombol <strong>Print / PDF / Excel</strong> untuk tiap tabel.</li>
+                        <li>Berita Acara tersedia pada tab khusus.</li>
+                        <li>Pastikan data <strong>TTD</strong> sudah diisi di Pengaturan Akun.</li>
+                    </ul>
                 </div>
             </div>
+        </div>
 
-        </div>`;
+    </div>
 
+</div>
+
+        `;
+
+    /* ============================================================
+       2.  P A N D U A N    R O L E :   P I M P I N A N
+       ============================================================ */
+    } else if (role === 'pimpinan') {
+
+        htmlContent = `
+        <div class="premium-guide">
+
+    <!-- HEADER -->
+    <div class="alert alert-warning shadow-sm border rounded d-flex align-items-center p-3 mb-4">
+        <div class="me-3">
+            <i class="bi bi-award-fill fs-1 text-warning"></i>
+        </div>
+        <div>
+            <h5 class="fw-bold mb-1">Panduan Pengguna – Mode Pimpinan</h5>
+            <div class="small">Akses eksekutif untuk memantau kinerja anggaran seluruh Unit/Prodi secara real-time.</div>
+        </div>
+    </div>
+
+    <!-- ILLUSTRATION / VISUAL CARDS -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 rounded-3">
+                <div class="card-body text-center">
+                    <i class="bi bi-speedometer2 fs-1 text-primary mb-2"></i>
+                    <h6 class="fw-bold">Dashboard Eksekutif</h6>
+                    <p class="small text-muted">Melihat performa anggaran instansi secara menyeluruh.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 rounded-3">
+                <div class="card-body text-center">
+                    <i class="bi bi-funnel fs-1 text-success mb-2"></i>
+                    <h6 class="fw-bold">Filter Dinamis</h6>
+                    <p class="small text-muted">Analisis mendalam berdasarkan Unit, Tahun, dan Tipe Ajuan.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 rounded-3">
+                <div class="card-body text-center">
+                    <i class="bi bi-layout-split fs-1 text-danger mb-2"></i>
+                    <h6 class="fw-bold">Matrix Semula-Menjadi</h6>
+                    <p class="small text-muted">Menganalisa perubahan anggaran sebelum & sesudah revisi.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ACCORDION -->
+    <div class="accordion" id="accordionPimpinanPremium">
+
+        <!-- 1. Dashboard Eksekutif -->
+        <div class="accordion-item shadow-sm border-0 rounded mb-3">
+            <h2 class="accordion-header" id="pm1">
+                <button class="accordion-button fw-bold" data-bs-toggle="collapse" data-bs-target="#pmp1">
+                    <i class="bi bi-speedometer2 me-2 text-primary"></i> 1. Dashboard Eksekutif
+                </button>
+            </h2>
+
+            <div id="pmp1" class="accordion-collapse collapse show">
+                <div class="accordion-body">
+
+                    <p class="fw-semibold mb-3">Dashboard menampilkan indikator utama:</p>
+
+                    <ul class="pointer-list">
+                        <li><i class="bi bi-boxes text-primary"></i> <strong>Kartu Ringkasan</strong>: Total Pagu, Total RPD, Total Realisasi.</li>
+                        <li><i class="bi bi-bar-chart-line-fill text-success"></i> <strong>Grafik Realisasi vs RPD</strong> untuk memantau efektivitas serapan.</li>
+                        <li><i class="bi bi-people text-warning"></i> <strong>Tabel Kinerja Prodi</strong>: perbandingan antar unit.</li>
+                    </ul>
+
+                    <div class="alert alert-info mt-3">
+                        <i class="bi bi-lightbulb"></i>
+                        Tips: Gunakan dashboard sebagai overview untuk mendeteksi unit dengan serapan rendah atau penyerapan terlalu cepat.
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Filter Dashboard -->
+        <div class="accordion-item shadow-sm border-0 rounded mb-3">
+            <h2 class="accordion-header" id="pm2">
+                <button class="accordion-button collapsed fw-bold" data-bs-toggle="collapse" data-bs-target="#pmp2">
+                    <i class="bi bi-funnel me-2 text-success"></i> 2. Menggunakan Filter Dashboard
+                </button>
+            </h2>
+
+            <div id="pmp2" class="accordion-collapse collapse">
+                <div class="accordion-body">
+
+                    <p class="fw-semibold mb-3">Anda dapat menyaring tampilan data berdasarkan:</p>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <div class="alert alert-primary p-2 small">
+                                <i class="bi bi-building"></i> <strong>Unit/Prodi</strong><br>
+                                Melihat detail anggaran unit tertentu saja.
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="alert alert-warning p-2 small">
+                                <i class="bi bi-calendar-event"></i> <strong>Tahun Anggaran</strong><br>
+                                Meninjau data per tahun (historis & terkini).
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="alert alert-success p-2 small">
+                                <i class="bi bi-diagram-3"></i> <strong>Tipe Ajuan</strong><br>
+                                Anggaran Awal atau Perubahan.
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="text-muted small">
+                        Filter akan memengaruhi tampilan Dashboard, RPD, Realisasi, dan Rekapan.
+                    </p>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Melihat Detail -->
+        <div class="accordion-item shadow-sm border-0 rounded mb-3">
+            <h2 class="accordion-header" id="pm3">
+                <button class="accordion-button collapsed fw-bold" data-bs-toggle="collapse" data-bs-target="#pmp3">
+                    <i class="bi bi-table me-2 text-dark"></i> 3. Melihat Detail Anggaran Unit
+                </button>
+            </h2>
+
+            <div id="pmp3" class="accordion-collapse collapse">
+                <div class="accordion-body">
+
+                    <p class="fw-semibold">Detail per Unit/Prodi dapat diakses melalui:</p>
+
+                    <ul>
+                        <li><i class="bi bi-calendar2-event text-primary"></i> Menu <strong>RPD</strong></li>
+                        <li><i class="bi bi-graph-up-arrow text-success"></i> Menu <strong>Realisasi</strong></li>
+                    </ul>
+
+                    <div class="alert alert-secondary mt-3">
+                        <i class="bi bi-printer"></i>
+                        Semua data dapat diekspor ke <strong>Excel</strong>, <strong>PDF</strong>, atau <strong>dicetak</strong>.
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Matrix Semula-Menjadi -->
+        <div class="accordion-item shadow-sm border-0 rounded mb-3">
+            <h2 class="accordion-header" id="pm4">
+                <button class="accordion-button collapsed fw-bold" data-bs-toggle="collapse" data-bs-target="#pmp4">
+                    <i class="bi bi-layout-split me-2 text-danger"></i> 4. Matrix Semula → Menjadi
+                </button>
+            </h2>
+
+            <div id="pmp4" class="accordion-collapse collapse">
+                <div class="accordion-body">
+
+                    <p>Matrix ini memuat:</p>
+                    <ul>
+                        <li><i class="bi bi-arrow-left-right text-danger"></i> Perbandingan <strong>Total Semula vs Menjadi</strong></li>
+                        <li><i class="bi bi-zoom-in text-primary"></i> Selisih anggaran setelah revisi</li>
+                        <li><i class="bi bi-basket text-info"></i> Penambahan item baru atau pengurangan item</li>
+                    </ul>
+
+                    <div class="alert alert-light border mt-3">
+                        <i class="bi bi-info-circle"></i>
+                        Cocok untuk rapat evaluasi anggaran dan pengambilan keputusan.
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. Riwayat -->
+        <div class="accordion-item shadow-sm border-0 rounded mb-3">
+            <h2 class="accordion-header" id="pm5">
+                <button class="accordion-button collapsed fw-bold" data-bs-toggle="collapse" data-bs-target="#pmp5">
+                    <i class="bi bi-clock-history me-2 text-info"></i> 5. Komentar & Riwayat Perubahan
+                </button>
+            </h2>
+
+            <div id="pmp5" class="accordion-collapse collapse">
+                <div class="accordion-body">
+
+                    <p>Pimpinan memiliki akses <strong>Read Only</strong> ke histori:</p>
+
+                    <ul>
+                        <li><i class="bi bi-clock text-info"></i> Riwayat perubahan data</li>
+                        <li><i class="bi bi-chat-dots text-primary"></i> Diskusi revisi antara Unit & Direktorat</li>
+                        <li><i class="bi bi-file-text text-secondary"></i> Catatan revisi item per item</li>
+                    </ul>
+
+                    <div class="alert alert-info mt-3">
+                        <i class="bi bi-eye-fill"></i>  
+                        Fitur ini membantu transparansi dan audit internal.
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+        `;
+
+    /* ============================================================
+       3.  P A N D U A N    R O L E :   D I R E K T O R A T
+       ============================================================ */
     } else {
-        // --- KONTEN PANDUAN UNTUK DIREKTORAT ---
+
         htmlContent = `
-        <div class="accordion" id="accordionPanduanDirektorat">
-            
-            <div class="alert alert-primary d-flex align-items-center">
-                <i class="bi bi-shield-check fs-4 me-3"></i>
-                <div>
-                    <strong>Mode Administrator / Direktorat</strong><br>
-                    Anda memiliki akses penuh untuk manajemen user, pengaturan sistem, dan review anggaran.
+        <div class="premium-guide">
+
+    <!-- HEADER -->
+    <div class="alert alert-primary shadow-sm border rounded d-flex align-items-center p-3 mb-4">
+        <div class="me-3">
+            <i class="bi bi-shield-lock-fill fs-1 text-primary"></i>
+        </div>
+        <div>
+            <h5 class="fw-bold mb-1">Panduan Pengguna – Mode Direktorat / Administrator</h5>
+            <div class="small">Anda memiliki akses penuh untuk mengelola user, review anggaran, pengaturan sistem, dan monitoring global.</div>
+        </div>
+    </div>
+
+    <!-- VISUAL CARDS -->
+    <div class="row g-3 mb-4">
+        
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100 border-0 rounded-3">
+                <div class="card-body text-center">
+                    <i class="bi bi-check2-square fs-1 text-success mb-2"></i>
+                    <h6 class="fw-bold">Review Ajuan</h6>
+                    <p class="small text-muted">Evaluasi ajuan dari seluruh unit secara cepat dan sistematis.</p>
                 </div>
             </div>
+        </div>
 
-            <!-- 1. Review Ajuan -->
-            <div class="accordion-item">
-                <h2 class="accordion-header" id="headingDir1">
-                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDir1">
-                        <strong>1. Melakukan Review Ajuan (Approval)</strong>
-                    </button>
-                </h2>
-                <div id="collapseDir1" class="accordion-collapse collapse show" data-bs-parent="#accordionPanduanDirektorat">
-                    <div class="accordion-body">
-                        <p>Anda dapat mereview ajuan satu per satu atau secara massal:</p>
-                        <ul>
-                            <li><strong>Review Satuan:</strong> Pada tabel Daftar Ajuan, klik tombol aksi:
-                                <ul>
-                                    <li><button class="btn btn-sm btn-success disabled"><i class="bi bi-check2-square"></i></button> Terima</li>
-                                    <li><button class="btn btn-sm btn-warning disabled"><i class="bi bi-arrow-counterclockwise"></i></button> Minta Revisi (Tulis catatan)</li>
-                                    <li><button class="btn btn-sm btn-danger disabled"><i class="bi bi-x-square"></i></button> Tolak</li>
-                                </ul>
-                            </li>
-                            <li><strong>Review Massal:</strong> Centang kotak di sebelah kiri baris (atau "Pilih Semua"), lalu gunakan tombol aksi massal yang muncul di atas tabel.</li>
-                            <li><strong>Blokir:</strong> Gunakan tombol <i class="bi bi-lock"></i> untuk memblokir ajuan Diterima agar tidak masuk perhitungan RPD (misal: dana ditahan).</li>
-                        </ul>
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100 border-0 rounded-3">
+                <div class="card-body text-center">
+                    <i class="bi bi-gear-fill fs-1 text-warning mb-2"></i>
+                    <h6 class="fw-bold">Pengaturan Sistem</h6>
+                    <p class="small text-muted">Atur tahapan, deadline, master data, dan pagu anggaran.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100 border-0 rounded-3">
+                <div class="card-body text-center">
+                    <i class="bi bi-bar-chart-line-fill fs-1 text-primary mb-2"></i>
+                    <h6 class="fw-bold">Monitoring & Log</h6>
+                    <p class="small text-muted">Pantau serapan anggaran & aktivitas user secara real-time.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ACCORDION -->
+    <div class="accordion" id="accordionDirektoratPremium">
+
+        <!-- 1. Review Ajuan -->
+        <div class="accordion-item shadow-sm border-0 rounded mb-3">
+            <h2 class="accordion-header">
+                <button class="accordion-button fw-bold" data-bs-toggle="collapse" data-bs-target="#dir1">
+                    <i class="bi bi-check-circle-fill me-2 text-success"></i> 1. Melakukan Review Ajuan Anggaran
+                </button>
+            </h2>
+
+            <div id="dir1" class="accordion-collapse collapse show">
+                <div class="accordion-body">
+
+                    <p class="fw-semibold">Direktorat dapat melakukan review ajuan dengan dua metode:</p>
+
+                    <ul class="pointer-list">
+                        <li><i class="bi bi-caret-right-fill text-success"></i> <strong>Review Satuan</strong> per item.</li>
+                        <li><i class="bi bi-caret-right-fill text-success"></i> <strong>Review Massal</strong> menggunakan checkbox.</li>
+                    </ul>
+
+                    <p class="fw-bold mt-3 mb-2">Tindakan yang tersedia:</p>
+                    <ul>
+                        <li><i class="bi bi-check2-square text-success"></i> <strong>Terima</strong> – Menyetujui ajuan.</li>
+                        <li><i class="bi bi-arrow-counterclockwise text-warning"></i> <strong>Minta Revisi</strong> – Meminta perbaikan (dengan catatan).</li>
+                        <li><i class="bi bi-x-square text-danger"></i> <strong>Tolak</strong> – Tidak menyetujui ajuan.</li>
+                        <li><i class="bi bi-lock-fill text-secondary"></i> <strong>Blokir</strong> – Menahan ajuan agar tidak ikut dalam RPD.</li>
+                    </ul>
+
+                    <div class="alert alert-info mt-3">
+                        <i class="bi bi-info-circle"></i>
+                        Gunakan fitur komentar untuk memberikan instruksi rinci ke Unit/Prodi.
                     </div>
+
                 </div>
             </div>
+        </div>
 
-            <!-- 2. Manajemen & Pengaturan -->
-            <div class="accordion-item">
-                <h2 class="accordion-header" id="headingDir2">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDir2">
-                        <strong>2. Pengaturan Sistem & Tahapan</strong>
-                    </button>
-                </h2>
-                <div id="collapseDir2" class="accordion-collapse collapse" data-bs-parent="#accordionPanduanDirektorat">
-                    <div class="accordion-body">
-                        <p>Buka menu <strong>Manajemen</strong> untuk:</p>
-                        <ul>
-                            <li><strong>Manajemen User:</strong> Menambah Unit/Prodi baru, mereset password, atau mengatur Pagu Anggaran (Ceiling).</li>
-                            <li><strong>Data Master:</strong> Mengelola Grub Belanja dan Kelompok Belanja.</li>
-                            <li><strong>Pengaturan Global:</strong>
-                                <ul>
-                                    <li>Membuka/Menutup Status Ajuan (Awal/Perubahan).</li>
-                                    <li>Mengatur Tanggal Batas Pengajuan (Deadline).</li>
-                                    <li>Mengaktifkan Pengumuman di Dashboard user.</li>
-                                </ul>
-                            </li>
-                            </ul>
+        <!-- 2. Pengaturan Sistem -->
+        <div class="accordion-item shadow-sm border-0 rounded mb-3">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-bold" data-bs-toggle="collapse" data-bs-target="#dir2">
+                    <i class="bi bi-gear-fill me-2 text-warning"></i> 2. Pengaturan Sistem & Manajemen
+                </button>
+            </h2>
+
+            <div id="dir2" class="accordion-collapse collapse">
+                <div class="accordion-body">
+
+                    <p class="fw-semibold mb-3">Menu Manajemen memberikan kontrol penuh atas:</p>
+
+                    <!-- Icons Boxes -->
+                    <div class="row g-3">
+
+                        <div class="col-md-4">
+                            <div class="alert alert-primary p-2 small">
+                                <i class="bi bi-people-fill"></i> <strong>Manajemen User</strong><br>
+                                Tambah unit, reset password, dan atur role.
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="alert alert-success p-2 small">
+                                <i class="bi bi-wallet2"></i> <strong>Pagu Anggaran</strong><br>
+                                Menetapkan batas anggaran setiap unit.
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="alert alert-info p-2 small">
+                                <i class="bi bi-hdd-stack-fill"></i> <strong>Data Master</strong><br>
+                                Kelola Grub Belanja & Kelompok Belanja.
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="alert alert-warning p-2 small">
+                                <i class="bi bi-calendar-event-fill"></i> <strong>Tahapan Ajuan</strong><br>
+                                Membuka/menutup Ajuan Awal & Perubahan.
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="alert alert-danger p-2 small">
+                                <i class="bi bi-hourglass-split"></i> <strong>Deadline Pengajuan</strong><br>
+                                Menentukan batas waktu pengajuan seluruh unit.
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="alert alert-secondary p-2 small">
+                                <i class="bi bi-megaphone-fill"></i> <strong>Pengumuman Global</strong><br>
+                                Mengirimkan notifikasi pengumuman ke semua user.
+                            </div>
+                        </div>
+
                     </div>
+
                 </div>
             </div>
+        </div>
 
-            <!-- 3. Monitoring -->
-            <div class="accordion-item">
-                <h2 class="accordion-header" id="headingDir3">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDir3">
-                        <strong>3. Monitoring Dashboard & Log</strong>
-                    </button>
-                </h2>
-                <div id="collapseDir3" class="accordion-collapse collapse" data-bs-parent="#accordionPanduanDirektorat">
-                    <div class="accordion-body">
-                        <ul>
-                            <li><strong>Dashboard Utama:</strong> Melihat ringkasan total Pagu, RPD, dan Realisasi seluruh institusi.</li>
-                            <li><strong>Filter Dashboard:</strong> Gunakan filter Tahun atau Tipe Ajuan untuk melihat data spesifik.</li>
-                            <li><strong>Tabel Ringkasan Unit:</strong> (Muncul jika tidak ada filter) Melihat performa serapan anggaran per Prodi secara real-time.</li>
-                            <li><strong>Log Aktivitas:</strong> Memantau siapa yang melakukan perubahan data, login, atau menghapus item.</li>
-                        </ul>
+        <!-- 3. Monitoring & Log -->
+        <div class="accordion-item shadow-sm border-0 rounded mb-3">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-bold" data-bs-toggle="collapse" data-bs-target="#dir3">
+                    <i class="bi bi-bar-chart-line-fill me-2 text-primary"></i> 3. Monitoring Dashboard & Log Aktivitas
+                </button>
+            </h2>
+
+            <div id="dir3" class="accordion-collapse collapse">
+                <div class="accordion-body">
+
+                    <p class="fw-semibold">Direktorat dapat melakukan monitoring pada:</p>
+
+                    <ul>
+                        <li><i class="bi bi-speedometer2 text-primary"></i> <strong>Dashboard Utama</strong> – Melihat total Pagu, RPD, Realisasi.</li>
+                        <li><i class="bi bi-people text-success"></i> <strong>Tabel Rekap Unit</strong> – Performa lengkap tiap Prodi/Unit.</li>
+                        <li><i class="bi bi-calendar-range text-warning"></i> <strong>Filter Tahun</strong> – Analisis per periode tertentu.</li>
+                        <li><i class="bi bi-diagram-3 text-danger"></i> <strong>Filter Tipe Ajuan</strong> – Anggaran Awal / Perubahan.</li>
+                    </ul>
+
+                    <div class="alert alert-secondary mt-3">
+                        <i class="bi bi-clock-history"></i> <strong>Log Aktivitas</strong><br>
+                        Melacak: login user, pengeditan data, penghapusan item, perubahan status ajuan, dan lain-lain.
                     </div>
+
                 </div>
             </div>
+        </div>
 
-        </div>`;
+        <!-- 4. Komunikasi -->
+        <div class="accordion-item shadow-sm border-0 rounded mb-3">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed fw-bold" data-bs-toggle="collapse" data-bs-target="#dir4">
+                    <i class="bi bi-chat-text-fill me-2 text-info"></i> 4. Komunikasi & Catatan Revisi
+                </button>
+            </h2>
+
+            <div id="dir4" class="accordion-collapse collapse">
+                <div class="accordion-body">
+
+                    <p class="fw-semibold">Direktorat dapat berkomunikasi dengan Unit melalui fitur:</p>
+
+                    <ul>
+                        <li><i class="bi bi-chat-dots text-primary"></i> <strong>Komentar</strong> – Beri arahan atau koreksi.</li>
+                        <li><i class="bi bi-clipboard-check text-warning"></i> <strong>Catatan Revisi</strong> – Tersimpan otomatis dalam sistem.</li>
+                        <li><i class="bi bi-bell-fill text-danger"></i> <strong>Notifikasi</strong> – Sistem mengirimkan pemberitahuan ke Unit.</li>
+                    </ul>
+
+                    <div class="alert alert-info mt-3">
+                        <i class="bi bi-shield-fill-check"></i>  
+                        Semua komentar terekam dalam sistem untuk keperluan audit dan transparansi.
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+        `;
     }
 
     container.innerHTML = htmlContent;
 }
+
   /**
    * Renders the announcement bar on the dashboard based on global settings.
    */
@@ -2260,7 +2668,9 @@ async function initializeApp(userData) {
         hideMenuByHref('#tab-log');
         hideMenuByHref('#tab-pengaturan-akun');
         hideMenuByHref('#tab-berita-acara');
-        hideMenuByHref('#tab-matrix-semula-menjadi');
+        
+        // --- BARIS DI BAWAH INI DIHAPUS AGAR MATRIX MUNCUL ---
+        // hideMenuByHref('#tab-matrix-semula-menjadi'); 
         
         // Show filter Unit di Dashboard
         const dashFilter = document.getElementById('filterProdiDashboard');
@@ -2782,6 +3192,19 @@ async function initializeApp(userData) {
     }
   });
   
+
+  // --- TAMBAHKAN KODE INI DI BAGIAN EVENT LISTENERS (BAWAH FILE) ---
+
+// Listener untuk memuat data saat Tab Matrix diklik
+const tabMatrixLink = document.querySelector('a[href="#tab-matrix-semula-menjadi"]');
+if (tabMatrixLink) {
+    tabMatrixLink.addEventListener('shown.bs.tab', () => {
+        loadMatrixSemulaMenjadi();
+    });
+}
+
+// Listener untuk tombol Refresh di dalam Tab Matrix
+safeAddClickListener('btn-refresh-matrix', loadMatrixSemulaMenjadi);
   // --- Event Listener and Handler for Import Ajuan (NEW) (MODIFIED) ---
   const uploadAjuanInput = document.getElementById('input-upload-excel-ajuan');
   if (uploadAjuanInput) {
