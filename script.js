@@ -2569,13 +2569,14 @@ async function initializeApp(userData) {
       setElValue('judulKegiatan', '');
       clearRincianForm(); 
   }
+  function saveStagingToLocal() {
+    localStorage.setItem('siPandai_stagingList', JSON.stringify(STATE.stagingList));
+}
   function renderStagingTable() {
     const stagingArea = document.getElementById('staging-area'); 
     const container = document.getElementById('staging-table-container'); 
     const summaryEl = document.getElementById('staging-summary');
-    function saveStagingToLocal() {
-    localStorage.setItem('siPandai_stagingList', JSON.stringify(STATE.stagingList));
-}
+    
     
     if (!stagingArea || !container || !summaryEl) return;
 
@@ -5210,17 +5211,15 @@ async function loadDashboardData(forceRefresh = false) {
 
       let filteredData = STATE.allDashboardData;
       
-      // Perform final filtering based on selected Tipe Ajuan if multi-table data was loaded
       if (STATE.allDashboardData.length > 0 && selectedTipe) {
           filteredData = STATE.allDashboardData.filter(d => { 
-              // Check if Tipe_Ajuan matches the filtered type
               const isPerubahanMatch = selectedTipe === 'Perubahan' && (d.Tipe_Ajuan || '').startsWith('Perubahan');
               const isAwalMatch = selectedTipe === 'Awal' && d.Tipe_Ajuan === 'Awal';
               return isPerubahanMatch || isAwalMatch;
           }); 
       }
       
-      // Mengatur visibilitas kartu Dashboard
+      // Elemen Kartu Dashboard
       const diajukanCard = document.getElementById('card-diajukan');
       const diterimaCard = document.getElementById('card-diterima');
       const paguCard = document.getElementById('dashboard-total-pagu-card');
@@ -5231,32 +5230,24 @@ async function loadDashboardData(forceRefresh = false) {
       
       const isDirectorateSummaryMode = (STATE.role === 'direktorat' || STATE.role === 'pimpinan') && !selectedYear && !selectedTipe;
 
-      // --- LOGIKA TAMPILAN KHUSUS PIMPINAN ---
+      // --- LOGIKA VISIBILITAS KARTU ---
+
       if (STATE.role === 'pimpinan') {
-          // 1. SEMBUNYIKAN Kartu Status Anggaran, Diajukan, Diterima
+          // PIMPINAN: Sembunyikan kartu detail, tampilkan Chart & Summary Table
           if (diajukanCard) diajukanCard.style.display = 'none';
           if (diterimaCard) diterimaCard.style.display = 'none';
           if (paguCard) paguCard.style.display = 'none'; 
-
-          // 2. TAMPILKAN Grafik RPD vs Realisasi & Ringkasan Triwulan/Semester
-          // (Konten ini berada di dalam rpdCard)
+          
           if (rpdCard) {
               rpdCard.style.display = 'block';
               rpdCard.classList.remove('col-xl-3', 'col-md-6');
-              rpdCard.classList.add('col-12'); // Full width agar grafik jelas
-              
-              // Opsional: Sembunyikan teks Total Angka RPD/Realisasi di atas chart jika hanya ingin grafik
-              // const totalTextContainer = rpdCard.querySelector('.d-flex.justify-content-between'); // Sesuaikan selector HTML
-              // if (totalTextContainer) totalTextContainer.style.display = 'none';
+              rpdCard.classList.add('col-12'); 
           }
-          
           if (direktoratCharts) direktoratCharts.style.display = 'block';
-          
-          // Sembunyikan kartu status kecil (warna-warni) jika ada, agar fokus ke Tabel
           if (statusCards) statusCards.style.display = 'none';
 
       } else if (isDirectorateSummaryMode) {
-          // Mode ringkasan Direktorat (Tanpa Filter)
+          // DIREKTORAT (Mode Ringkasan): Sembunyikan kartu detail, tampilkan Summary Table & Status Cards
           if (diajukanCard) diajukanCard.style.display = 'none';
           if (diterimaCard) diterimaCard.style.display = 'none';
           if (paguCard) paguCard.style.display = 'none'; 
@@ -5266,38 +5257,42 @@ async function loadDashboardData(forceRefresh = false) {
               rpdCard.classList.add('col-12'); 
           }
           if (direktoratCharts) direktoratCharts.style.display = 'block';
-          if (statusCards) statusCards.style.display = 'flex'; // Tampilkan kartu status prodi
+          if (statusCards) statusCards.style.display = 'flex'; 
 
       } else { 
-          // Mode Prodi atau Direktorat dengan Filter Waktu/Tipe: Tampilkan kartu agregat lengkap
-          if (diajukanCard) diajukanCard.style.display = 'block';
-          if (diterimaCard) diterimaCard.style.display = 'block';
-          if (paguCard) paguCard.style.display = 'block'; 
+          // --- LOGIKA UNTUK PRODI (Dan Direktorat mode Filter) ---
           
+          // 1. Kartu Pagu (Status Anggaran)
+          if (paguCard) paguCard.style.display = 'block'; 
+
+          // 2. Kartu Diajukan & Diterima: SEMBUNYIKAN JIKA PRODI
+          if (STATE.role === 'prodi') {
+              if (diajukanCard) diajukanCard.style.display = 'none'; // Hapus Total Diajukan
+              if (diterimaCard) diterimaCard.style.display = 'none'; // Hapus Total Diterima
+          } else {
+              // Jika Direktorat dengan filter, tetap tampilkan
+              if (diajukanCard) diajukanCard.style.display = 'block';
+              if (diterimaCard) diterimaCard.style.display = 'block';
+          }
+          
+          // 3. Grafik RPD vs Realisasi
           if (rpdCard) {
               rpdCard.classList.remove('col-12');
               rpdCard.classList.add('col-xl-3', 'col-md-6');
+              rpdCard.style.display = 'block';
           }
+
           if (direktoratCharts) direktoratCharts.style.display = STATE.role === 'direktorat' ? 'block' : 'none';
       }
       
       renderDashboardSummary(filteredData); 
       
-      // --- LOGIKA RENDER TABEL RINGKASAN UNIT ---
+      // Logika Tabel Ringkasan Unit
       if (STATE.role === 'direktorat' || STATE.role === 'pimpinan') { 
-          // Pimpinan SELALU melihat tabel ringkasan unit (baik ada filter maupun tidak)
-          // Direktorat hanya melihat tabel saat mode summary (tanpa filter)
-          
           if (STATE.role === 'pimpinan' || isDirectorateSummaryMode) {
-               // Render tabel ringkasan unit
-               // Note: Jika Pimpinan memakai filter, data summary ini idealnya juga terfilter.
-               // Namun karena struktur data 'direktoratSummaryData' adalah snapshot statis, 
-               // kita tampilkan apa adanya atau filter manual di client side jika diperlukan.
-               // Untuk saat ini kita tampilkan summary data global.
               renderDirektoratDashboard(STATE.direktoratSummaryData); 
               if (tableContainer) tableContainer.style.display = 'block';
           } else {
-              // Jika Direktorat pakai filter -> Sembunyikan tabel ringkasan unit, fokus ke detail data
               if (tableContainer) tableContainer.innerHTML = '';
               if (statusCards) statusCards.innerHTML = '<div class="col-12"><p class="text-center text-muted small">Tabel ringkasan per unit dinonaktifkan saat filter waktu atau tipe ajuan diterapkan.</p></div>';
           }
