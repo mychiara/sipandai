@@ -37,8 +37,21 @@ body.login-view {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #e0eafc, #cfdef3);
+
+  /* Background Image */
+  background: url('assets/polkesku.jpeg') no-repeat center center fixed;
+  background-size: cover;
 }
+
+body.login-view::before {
+    content: "";
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.35); /* 35% gelap */
+    z-index: -1;
+}
+
 
 #login-page-wrapper {
   display: flex;
