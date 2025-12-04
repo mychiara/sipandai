@@ -11,8 +11,51 @@ const auth = firebase.auth();
 
 // 2. Initialize Supabase
 // "supabase" global comes from the CDN script included in your HTML
-const { createClient } = supabase; 
+const { createClient } = supabase;
 const sb = createClient(CONFIG.supabase.url, CONFIG.supabase.key);
+
+// --- MOBILE SIDEBAR TOGGLE ---
+function toggleMobileSidebar() {
+    const sidebar = document.querySelector('.app-sidebar');
+    const overlay = document.querySelector('.mobile-overlay');
+    const body = document.body;
+
+    if (sidebar.classList.contains('mobile-open')) {
+        // Close sidebar
+        sidebar.classList.remove('mobile-open');
+        overlay.classList.remove('show');
+        body.style.overflow = '';
+    } else {
+        // Open sidebar
+        sidebar.classList.add('mobile-open');
+        overlay.classList.add('show');
+        body.style.overflow = 'hidden';
+    }
+}
+
+function closeMobileSidebar() {
+    const sidebar = document.querySelector('.app-sidebar');
+    const overlay = document.querySelector('.mobile-overlay');
+    const body = document.body;
+
+    sidebar.classList.remove('mobile-open');
+    overlay.classList.remove('show');
+    body.style.overflow = '';
+}
+
+// Add mobile overlay element to DOM
+document.addEventListener('DOMContentLoaded', function() {
+    const overlay = document.createElement('div');
+    overlay.className = 'mobile-overlay';
+    overlay.addEventListener('click', closeMobileSidebar);
+    document.body.appendChild(overlay);
+
+    // Mobile menu toggle button
+    const mobileToggle = document.getElementById('mobile-menu-toggle');
+    if (mobileToggle) {
+        mobileToggle.addEventListener('click', toggleMobileSidebar);
+    }
+});
 
 // --- ALIASES & HELPERS ---
 
