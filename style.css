@@ -201,11 +201,6 @@ body.login-view::before {
   width: 100%;
   padding: 1rem;
 }
-#login-page-wrapper .card {
-    width: 30% !important;
-    max-width: 30% !important; 
-}
-
 
 #login-page-wrapper .card {
   border: none;
@@ -756,3 +751,4 @@ body.login-view::before {
   .ba-table th, .ba-table td { padding: 4px; }
 }
 --- END OF FILE style.css ---
+
