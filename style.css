@@ -24,10 +24,124 @@ body:not(.login-view) {
     transform: scale(0.6);
     transform-origin: top left;
     /* Menghitung ukuran body agar konten yang di-scale (0.6) mengisi viewport asli */
-    width: calc(100% / 0.6); 
+    width: calc(100% / 0.6);
     min-height: calc(100vh / 0.6);
     overflow: auto; /* Memungkinkan scrolling untuk konten asli */
     position: absolute; /* Membantu positioning transform */
+}
+
+/* --- MOBILE RESPONSIVE STYLES --- */
+@media (max-width: 768px) {
+    /* Disable desktop scaling on mobile */
+    body:not(.login-view) {
+        transform: none;
+        transform-origin: unset;
+        width: 100%;
+        min-height: 100vh;
+        overflow: auto;
+        position: static;
+    }
+
+    /* Mobile sidebar: off-canvas */
+    .app-sidebar {
+        position: fixed;
+        top: var(--header-height);
+        left: -100%;
+        width: 260px;
+        height: calc(100vh - var(--header-height));
+        background-color: #2c3e50;
+        z-index: 1040;
+        transition: left 0.3s ease;
+        overflow-y: auto;
+    }
+
+    .app-sidebar.mobile-open {
+        left: 0;
+    }
+
+    /* Mobile overlay */
+    .mobile-overlay {
+        position: fixed;
+        top: var(--header-height);
+        left: 0;
+        width: 100%;
+        height: calc(100vh - var(--header-height));
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1039;
+        display: none;
+    }
+
+    .mobile-overlay.show {
+        display: block;
+    }
+
+    /* Fix header on mobile */
+    .app-header {
+        position: fixed;
+        top: 0;
+        width: 100%;
+        z-index: 1045;
+    }
+
+    /* Adjust content padding for fixed header */
+    .app-content {
+        padding-top: var(--header-height);
+        height: calc(100vh - var(--header-height));
+    }
+
+    /* Ensure tables are horizontally scrollable on mobile */
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Stack dashboard cards into one column */
+    .row.g-3.mb-4 .col-xl-3,
+    .row.g-3.mb-4 .col-md-6 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+
+    /* Stack status cards */
+    .row.g-3.mb-4 .col {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+
+    /* Stack charts */
+    .row.g-3 .col-12,
+    .row.g-3 .col-lg-9,
+    .row.g-3 .col-lg-3 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+
+    /* Adjust filter bars for mobile */
+    .filter-bar,
+    .summary-bar,
+    .bulk-action-bar {
+        flex-direction: column;
+        gap: 0.5rem;
+        align-items: stretch;
+    }
+
+    .filter-bar select,
+    .summary-bar div,
+    .bulk-action-bar span,
+    .bulk-action-bar button {
+        width: 100%;
+    }
+
+    /* Mobile menu toggle button */
+    #mobile-menu-toggle {
+        margin-right: 0.5rem;
+    }
+
+    /* Adjust login page for mobile */
+    #login-page-wrapper .card {
+        width: 90% !important;
+        max-width: 90% !important;
+    }
 }
 /* -------------------------------------- */
 /* --- LOGIN PAGE --- */
