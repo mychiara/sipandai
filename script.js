@@ -6103,7 +6103,9 @@ function renderDashboardSummary(data, containerPrefix = 'dashboard-', chartPrefi
     let totalDiterimaOverall = 0; // Budget Bersih
     let statusCounts = { 'Menunggu Review': 0, 'Diterima': 0, 'Ditolak': 0, 'Revisi': 0 }; 
     const rpdPerBulan = Array(12).fill(0); 
-    const realisasiPerBulan = Array(12).fill(0); 
+    const realisasiPerBulan = Array(12).fill(0);
+
+    let totalBlockedOverall = 0;
 
     // Aggregation Logic
     data.forEach(ajuan => { 
@@ -6114,6 +6116,9 @@ function renderDashboardSummary(data, containerPrefix = 'dashboard-', chartPrefi
         totalDiajukanOverall += total;
 
         if (ajuan.Status) statusCounts[ajuan.Status] = (statusCounts[ajuan.Status] || 0) + 1; 
+
+        if (ajuan.Status === 'Diterima') { 
+            totalBlockedOverall += nominalBlokir; // <--- TAMBAHAN: Agregasi Nominal Blokir
         
         if (ajuan.Status === 'Diterima' && budgetBersih > 0) { 
             totalDiterimaOverall += budgetBersih; // Use Budget Bersih
@@ -6123,6 +6128,7 @@ function renderDashboardSummary(data, containerPrefix = 'dashboard-', chartPrefi
                 rpdPerBulan[index] += rpdVal;
                 realisasiPerBulan[index] += realVal;
             }); 
+            } 
         } 
     }); 
     
@@ -6142,6 +6148,9 @@ function renderDashboardSummary(data, containerPrefix = 'dashboard-', chartPrefi
         paguSekarangDisplay = STATE.direktoratSummaryData.reduce((sum, p) => sum + (Number(p.total_diterima_final_bersih) || 0), 0);
         totalRPD = STATE.direktoratSummaryData.reduce((sum, p) => sum + (Number(p.total_rpd_commitment) || 0), 0);
         totalRealisasi = STATE.direktoratSummaryData.reduce((sum, p) => sum + (Number(p.total_realisasi_overall) || 0), 0);
+        
+        // TAMBAHAN: Load total blocked from summary data
+        totalBlockedOverall = STATE.direktoratSummaryData.reduce((sum, p) => sum + (Number(p.total_blocked) || 0), 0);
         
         // Reset array bulanan untuk chart
         rpdPerBulan.fill(0); realisasiPerBulan.fill(0);
@@ -6173,18 +6182,20 @@ function renderDashboardSummary(data, containerPrefix = 'dashboard-', chartPrefi
     const paguLabelEl = document.getElementById('dashboard-pagu-label');
     if(paguLabelEl) paguLabelEl.textContent = "Status Anggaran (" + activeLabel + ") - BUDGET BERSIH";
 
-    // Kartu Pagu
-    // Label: Pagu Sebelum (Awal/Lama)
-    const paguAwalEl = document.getElementById('dashboard-total-pagu-awal');
-    if (paguAwalEl) {
-        paguAwalEl.parentElement.innerHTML = `Pagu Ceiling/Awal: <strong id="dashboard-total-pagu-awal">Rp ${paguSebelumDisplay.toLocaleString('id-ID')}</strong>`;
-    }
-
-    // Label: Pagu Sekarang (Aktif)
-    const paguPerubahanEl = document.getElementById('dashboard-total-pagu-perubahan');
-    if (paguPerubahanEl) {
-        // activeLabel sekarang sudah aman digunakan di sini
-        paguPerubahanEl.parentElement.innerHTML = `Pagu Diterima Bersih (${activeLabel}): <strong id="dashboard-total-pagu-perubahan">Rp ${paguSekarangDisplay.toLocaleString('id-ID')}</strong>`;
+    // Kartu Pagu Breakdown
+    const paguBreakdownEl = document.getElementById('dashboard-pagu-breakdown');
+    if (paguBreakdownEl) {
+        let breakdownHTML = `
+            Pagu Ceiling/Awal: <strong id="dashboard-total-pagu-awal">Rp ${paguSebelumDisplay.toLocaleString('id-ID')}</strong><br>
+            Pagu Diterima Bersih (${activeLabel}): <strong id="dashboard-total-pagu-perubahan">Rp ${paguSekarangDisplay.toLocaleString('id-ID')}</strong>
+        `;
+        
+        // TAMBAHAN: Tampilkan Total Nominal Diblokir jika ada
+        if (totalBlockedOverall > 0) {
+             breakdownHTML += `<br><span class="text-danger">Total Nominal Diblokir:</span> <strong class="text-danger">Rp ${totalBlockedOverall.toLocaleString('id-ID')}</strong>`;
+        }
+        
+        paguBreakdownEl.innerHTML = breakdownHTML;
     }
 
     // Update Angka Utama Pagu Card (Total Pagu Sekarang)
