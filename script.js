@@ -289,11 +289,15 @@ async function recalculateProdiSummary(prodiId) {
         const summaryData = {
             id_prodi: prodiId,
             pagu_awal_ceiling: paguAwal,
-            total_diajukan_overall: result.total_diajukan,
-            total_diterima_final_bersih: result.total_diterima,
-            total_rpd_commitment: result.total_rpd,
-            total_realisasi_overall: result.total_realisasi,
-            last_updated: new Date().toISOString()
+            total_diajukan_overall: totalDiajukanOverall,
+            total_diterima_awal_bersih: totalDiterimaAwalBersih,
+            total_diterima_final_bersih: totalDiterimaFinalBersih,
+            total_blocked: totalBlocked, // <--- Dimasukkan di sini
+            total_rpd_commitment: totalRpdCommitment,
+            total_realisasi_overall: totalRealisasiOverall,
+            rpd_monthly: rpdMonthly,
+            realisasi_monthly: realisasiMonthly,
+            last_updated: sbTimestamp()
         };
 
         const { error: upsertError } = await sb.from(PRODI_SUMMARY_TABLE)
@@ -730,63 +734,65 @@ if (filterKelompokRekapan) {
   // --- END UTILITY FUNCTIONS FOR EXPORT & PRINT ---
   
     // --- NEW: RECALCULATE PRODI SUMMARY TABLE ---
-    /**
-     * Recalculates all dashboard metrics for a single Prodi/Unit and updates the prodi_summary table.
-     * @param {string} prodiId 
-     */
-     async function recalculateProdiSummary(prodiId) {
-        if (!prodiId) return;
-        // console.log(`[SUMMARY] Recalculating summary for ${prodiId}`);
+/**
+ * Recalculates all dashboard metrics for a single Prodi/Unit and updates the prodi_summary table.
+ * @param {string} prodiId 
+ */
+ async function recalculateProdiSummary(prodiId) {
+    if (!prodiId) return;
+    // console.log(`[SUMMARY] Recalculating summary for ${prodiId}`);
+    
+    try {
+        const tahapAktif = STATE.globalSettings.Tahap_Perubahan_Aktif || 0;
         
-        try {
-            const tahapAktif = STATE.globalSettings.Tahap_Perubahan_Aktif || 0;
+        let tablesToQuery = ['ajuan']; 
+        if (tahapAktif > 0) {
+             tablesToQuery.push(getAjuanTableName(`Perubahan ${tahapAktif}`));
+        }
+
+        let totalDiajukanOverall = 0;
+        let totalDiterimaAwalBersih = 0; 
+        let totalDiterimaFinalBersih = 0; 
+        let totalBlocked = 0; // <--- The variable in question
+        let totalRpdCommitment = 0;
+        let totalRealisasiOverall = 0;
+
+        // Initialize monthly sums
+        const rpdMonthly = {};
+        const realisasiMonthly = {};
+        RPD_MONTHS.forEach(m => {
+            rpdMonthly[getMonthlyKey('RPD', m)] = 0;
+            realisasiMonthly[getMonthlyKey('Realisasi', m)] = 0;
+        });
+
+        // Iterate through relevant tables
+        for (const tableName of tablesToQuery) {
+             const isAwalTable = tableName === 'ajuan';
+
+             const { data: rawData, error } = await sb.from(tableName)
+                .select(`Total, Status, Tipe_Ajuan, Is_Blocked, Nominal_Blokir, ${RPD_SELECT_COLUMNS}`) 
+                .eq('ID_Prodi', prodiId);
             
-            // We only need to look at Awal and the LATEST active revision table.
-            // Previous revisions are historically relevant but the "Budget Ceiling" is determined by the latest state.
-            let tablesToQuery = ['ajuan']; 
-            if (tahapAktif > 0) {
-                 tablesToQuery.push(getAjuanTableName(`Perubahan ${tahapAktif}`));
-            }
+             if (error) {
+                console.error(`[SUMMARY] Failed to query ${tableName}:`, error);
+                continue;
+             }
 
-            let totalDiajukanOverall = 0;
-            let totalDiterimaAwalBersih = 0; // Specifically from 'ajuan' table
-            let totalDiterimaFinalBersih = 0; // Awal + Changes in Perubahan
-            let totalRpdCommitment = 0;
-            let totalRealisasiOverall = 0;
+             rawData.forEach(ajuan => {
+                const total = Number(ajuan.Total) || 0;
+                const nominalBlokir = Number(ajuan.Nominal_Blokir) || 0; 
+                const budgetBersih = total - nominalBlokir;              
 
-            // Initialize monthly sums
-            const rpdMonthly = {};
-            const realisasiMonthly = {};
-            RPD_MONTHS.forEach(m => {
-                rpdMonthly[getMonthlyKey('RPD', m)] = 0;
-                realisasiMonthly[getMonthlyKey('Realisasi', m)] = 0;
-            });
-
-            // Iterate through relevant tables
-            for (const tableName of tablesToQuery) {
-                 const isAwalTable = tableName === 'ajuan';
-
-                 const { data: rawData, error } = await sb.from(tableName)
-                    .select(`Total, Status, Tipe_Ajuan, Is_Blocked, Nominal_Blokir, ${RPD_SELECT_COLUMNS}`) // <<< ADD Nominal_Blokir
-                    .eq('ID_Prodi', prodiId);
+                totalDiajukanOverall += total;
                 
-                 if (error) {
-                    console.error(`[SUMMARY] Failed to query ${tableName}:`, error);
-                    continue;
-                 }
+                // Cek Status Diterima
+                if (ajuan.Status === 'Diterima') {
+                    
+                    // KRITIS: Kumpulkan Total Blokir untuk SEMUA item Diterima, terlepas dari Budget Bersih > 0
+                    totalBlocked += nominalBlokir;
 
-                 rawData.forEach(ajuan => {
-                    const total = Number(ajuan.Total) || 0;
-                    const nominalBlokir = Number(ajuan.Nominal_Blokir) || 0; 
-                    const budgetBersih = total - nominalBlokir;              
-
-                    // Although Nominal_Blokir is primary, we keep Is_Blocked check for legacy/integrity
-                    const isBlocked = !!ajuan.Is_Blocked; 
-
-                    totalDiajukanOverall += total;
-
-                    // Status must be 'Diterima' AND budgetBersih > 0 
-                    if (ajuan.Status === 'Diterima' && budgetBersih > 0) { 
+                    // Hitung Budget Bersih, RPD, dan Realisasi HANYA jika ada anggaran yang tidak diblokir
+                    if (budgetBersih > 0) {
                         
                         // If we are in the Awal table, add to Awal total
                         if (isAwalTable) {
@@ -794,7 +800,7 @@ if (filterKelompokRekapan) {
                         } 
                         
                         // Final Budget uses the current stage's budgetBersih
-                        totalDiterimaFinalBersih += budgetBersih; 
+                        totalDiterimaFinalBersih += budgetBersih;
 
                         // RPD & Realisasi aggregation
                         RPD_MONTHS.forEach(m => {
@@ -808,38 +814,40 @@ if (filterKelompokRekapan) {
                             realisasiMonthly[getMonthlyKey('Realisasi', m)] += realVal;
                         });
                     }
-                 });
-            }
-            
-            // Get Pagu Awal from Firebase State
-            const prodiUserData = STATE.allProdi.find(p => p.ID_Prodi === prodiId);
-            const paguAwal = Number(prodiUserData?.Pagu_Anggaran) || 0;
-
-            const summaryData = {
-                id_prodi: prodiId,
-                pagu_awal_ceiling: paguAwal,
-                total_diajukan_overall: totalDiajukanOverall,
-                total_diterima_awal_bersih: totalDiterimaAwalBersih,
-                total_diterima_final_bersih: totalDiterimaFinalBersih, 
-                total_rpd_commitment: totalRpdCommitment,
-                total_realisasi_overall: totalRealisasiOverall,
-                realisasi_monthly: realisasiMonthly,
-                rpd_monthly: rpdMonthly,
-                last_updated: sbTimestamp()
-            };
-
-            const { error: upsertError } = await sb.from(PRODI_SUMMARY_TABLE)
-                .upsert(summaryData, { onConflict: 'id_prodi' });
-
-            if (upsertError) throw upsertError;
-
-            // Clear cache to ensure UI updates immediately
-            STATE.direktoratSummaryData = []; 
-            
-        } catch (error) {
-            console.error(`[SUMMARY] Failed to update summary for ${prodiId}:`, error);
+                }
+             });
         }
+        
+        // Get Pagu Awal from Firebase State
+        const prodiUserData = STATE.allProdi.find(p => p.ID_Prodi === prodiId);
+        const paguAwal = Number(prodiUserData?.Pagu_Anggaran) || 0;
+
+        const summaryData = {
+            id_prodi: prodiId,
+            pagu_awal_ceiling: paguAwal,
+            total_diajukan_overall: totalDiajukanOverall,
+            total_diterima_awal_bersih: totalDiterimaAwalBersih,
+            total_diterima_final_bersih: totalDiterimaFinalBersih,
+            total_blocked: totalBlocked, // <--- Sudah dihitung dengan benar
+            total_rpd_commitment: totalRpdCommitment,
+            total_realisasi_overall: totalRealisasiOverall,
+            realisasi_monthly: realisasiMonthly,
+            rpd_monthly: rpdMonthly,
+            last_updated: sbTimestamp()
+        };
+
+        const { error: upsertError } = await sb.from(PRODI_SUMMARY_TABLE)
+            .upsert(summaryData, { onConflict: 'id_prodi' });
+
+        if (upsertError) throw upsertError;
+
+        // Clear cache dashboard agar UI refresh
+        STATE.direktoratSummaryData = []; 
+        
+    } catch (e) {
+        console.error(`[SUMMARY RPC] Failed for ${prodiId}:`, e);
     }
+}
     // --- END: RECALCULATE PRODI SUMMARY TABLE ---
 
   
@@ -5823,14 +5831,14 @@ async function loadDashboardData(forceRefresh = false) {
 
     // MODE PIMPINAN / DIREKTORAT (SUMMARY VIEW)
     // Jika tidak ada filter tahun & tipe, gunakan mode ringkasan tabel prodi_summary
-    const isSummaryMode = (STATE.role === 'direktorat' || STATE.role === 'pimpinan') && !selectedYear && !selectedTipe;
+     const isSummaryMode = (STATE.role === 'direktorat' || STATE.role === 'pimpinan') && !selectedYear && !selectedTipe;
 
     if (isSummaryMode) {
         if (forceRefresh || STATE.direktoratSummaryData.length === 0) {
             let query = sb
                 .from(PRODI_SUMMARY_TABLE)
-                .select(`id_prodi, pagu_awal_ceiling, total_diterima_awal_bersih, total_diterima_final_bersih, total_rpd_commitment, total_realisasi_overall, rpd_monthly, realisasi_monthly`);
-            
+                // PASTIKAN total_blocked ADA DI SINI
+                .select(`id_prodi, pagu_awal_ceiling, total_diterima_awal_bersih, total_diterima_final_bersih, total_rpd_commitment, total_realisasi_overall, rpd_monthly, realisasi_monthly, total_blocked`); // <--- KRITIS: total_blocked DITAMBAHKAN
             // FILTER PENTING UNTUK PIMPINAN:
             if (selectedProdi) {
                 query = query.eq('id_prodi', selectedProdi);
@@ -6277,7 +6285,7 @@ function renderDirektoratDashboard(summaryData) {
         ];
 
         const paguAwal = Number(item.pagu_awal_ceiling) || 0;
-        const paguSekarang = Number(item.total_diterima_final_bersih) || 0; // Budget Bersih Final
+        const paguSekarang = Number(item.total_diterima_final_bersih) || 0; // Budget Bersih
         const totalRealisasi = Number(item.total_realisasi_overall) || 0;
         const totalRPDCommitment = Number(item.total_rpd_commitment) || 0;
         const totalDiterimaAwalBersih = Number(item.total_diterima_awal_bersih) || 0; // Budget Bersih Awal
@@ -6289,12 +6297,13 @@ function renderDirektoratDashboard(summaryData) {
         return {
             Nama_Prodi: prodiInfo.Nama_Prodi,
             ID_Prodi: item.id_prodi,
-            Pagu_Awal: paguAwal, 
-            Pagu_Sebelum_Bersih: totalDiterimaAwalBersih, 
-            Pagu_Sekarang: paguSekarang, 
-            Selisih_Pagu: Selisih_Pagu_Bersih, 
+            Pagu_Awal: paguAwal,
+            Pagu_Sebelum_Bersih: totalDiterimaAwalBersih,
+            Pagu_Sekarang: paguSekarang,
+            Selisih_Pagu: Selisih_Pagu_Bersih,
             Total_RPD: totalRPDCommitment,
-            
+            Total_Blokir: Number(item.total_blocked) || 0,
+
             Realisasi_TW1: tw[0],
             Realisasi_TW2: tw[1],
             Realisasi_TW3: tw[2],
@@ -6302,7 +6311,7 @@ function renderDirektoratDashboard(summaryData) {
             Realisasi_S1: semester[0],
             Realisasi_S2: semester[1],
             Total_Realisasi: totalRealisasi,
-            
+
             Sisa_Belum_RPD: Sisa_Belum_RPD,
             Sisa_Belum_Realisasi: Sisa_Belum_Realisasi,
         };
@@ -6339,7 +6348,7 @@ function renderDirektoratSummaryTable(summaryData) {
                     <tr>
                         <th rowspan="2" class="align-middle text-center">No.</th>
                         <th rowspan="2" class="align-middle" style="min-width: 150px;">Nama Unit</th>
-                        <th colspan="4" class="text-center">Pagu & RPD Anggaran (Rp)</th>
+                        <th colspan="6" class="text-center">Pagu & RPD Anggaran (Rp)</th>
                         <th colspan="12" class="text-center">Realisasi (Rp)</th>
                         <th rowspan="2" class="align-middle text-end" style="min-width: 130px;">Total Realisasi (Rp)</th>
                         <th rowspan="2" class="align-middle text-center" style="min-width: 100px;">% Realisasi (vs Pagu Bersih)</th>
@@ -6349,6 +6358,7 @@ function renderDirektoratSummaryTable(summaryData) {
                         <th class="text-end" style="min-width: 130px;">Pagu Sekarang (Bersih)</th>
                         <th class="text-end" style="min-width: 100px;">Selisih Pagu Bersih</th>
                         <th class="text-end" style="min-width: 130px;">Total RPD</th>
+                        <th class="text-end" style="min-width: 130px;">Total Blokir</th>
                         <th class="text-end">TW 1</th><th class="text-center">%</th>
                         <th class="text-end">TW 2</th><th class="text-center">%</th>
                         <th class="text-end">TW 3</th><th class="text-center">%</th>
@@ -6362,16 +6372,17 @@ function renderDirektoratSummaryTable(summaryData) {
     
     // PERBAIKAN DI SINI: Menambahkan Total_RPD ke inisialisasi object
     let grandTotals = {
-        Pagu_Awal: 0, 
+        Pagu_Awal: 0,
         Pagu_Sekarang: 0, // Pagu Bersih
-        Selisih_Pagu: 0, 
+        Selisih_Pagu: 0,
         Total_RPD: 0,
+        Total_Blokir: 0,
         Total_Realisasi: 0,
-        Realisasi_TW1: 0, 
-        Realisasi_TW2: 0, 
-        Realisasi_TW3: 0, 
+        Realisasi_TW1: 0,
+        Realisasi_TW2: 0,
+        Realisasi_TW3: 0,
         Realisasi_TW4: 0,
-        Realisasi_S1: 0, 
+        Realisasi_S1: 0,
         Realisasi_S2: 0
     };
 
@@ -6397,6 +6408,7 @@ function renderDirektoratSummaryTable(summaryData) {
                 <td class="text-end fw-bold">${safeFmt(item.Pagu_Sekarang)}</td>
                 <td class="text-end ${selisihClass} fw-bold">${safeFmt(item.Selisih_Pagu)}</td>
                 <td class="text-end text-info fw-bold">${safeFmt(item.Total_RPD)}</td>
+                <td class="text-end text-danger fw-bold">${safeFmt(item.Total_Blokir)}</td>
                 
                 <td class="text-end">${safeFmt(item.Realisasi_TW1)}</td>
                 <td class="text-center">${getPeriodPercentage(item.Realisasi_TW1, item.Pagu_Sekarang)}</td>
@@ -6438,6 +6450,7 @@ function renderDirektoratSummaryTable(summaryData) {
             <td class="text-end fw-bold">${safeFmt(grandTotals.Pagu_Sekarang)}</td>
             <td class="text-end fw-bold ${overallSelisihClass}">${safeFmt(grandTotals.Selisih_Pagu)}</td>
             <td class="text-end fw-bold">${safeFmt(grandTotals.Total_RPD)}</td>
+            <td class="text-end fw-bold">${safeFmt(grandTotals.Total_Blokir)}</td>
             
             <td class="text-end fw-bold">${safeFmt(grandTotals.Realisasi_TW1)}</td>
             <td class="text-center">${getPeriodPercentage(grandTotals.Realisasi_TW1, grandTotals.Pagu_Sekarang)}</td>
