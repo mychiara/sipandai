@@ -1,4 +1,4 @@
-// --- INITIALIZATION ---
+    // --- INITIALIZATION ---
 
 // 1. Initialize Firebase
 // Check if apps are already initialized to prevent re-initialization errors
@@ -11,51 +11,8 @@ const auth = firebase.auth();
 
 // 2. Initialize Supabase
 // "supabase" global comes from the CDN script included in your HTML
-const { createClient } = supabase;
+const { createClient } = supabase; 
 const sb = createClient(CONFIG.supabase.url, CONFIG.supabase.key);
-
-// --- MOBILE SIDEBAR TOGGLE ---
-function toggleMobileSidebar() {
-    const sidebar = document.querySelector('.app-sidebar');
-    const overlay = document.querySelector('.mobile-overlay');
-    const body = document.body;
-
-    if (sidebar.classList.contains('mobile-open')) {
-        // Close sidebar
-        sidebar.classList.remove('mobile-open');
-        overlay.classList.remove('show');
-        body.style.overflow = '';
-    } else {
-        // Open sidebar
-        sidebar.classList.add('mobile-open');
-        overlay.classList.add('show');
-        body.style.overflow = 'hidden';
-    }
-}
-
-function closeMobileSidebar() {
-    const sidebar = document.querySelector('.app-sidebar');
-    const overlay = document.querySelector('.mobile-overlay');
-    const body = document.body;
-
-    sidebar.classList.remove('mobile-open');
-    overlay.classList.remove('show');
-    body.style.overflow = '';
-}
-
-// Add mobile overlay element to DOM
-document.addEventListener('DOMContentLoaded', function() {
-    const overlay = document.createElement('div');
-    overlay.className = 'mobile-overlay';
-    overlay.addEventListener('click', closeMobileSidebar);
-    document.body.appendChild(overlay);
-
-    // Mobile menu toggle button
-    const mobileToggle = document.getElementById('mobile-menu-toggle');
-    if (mobileToggle) {
-        mobileToggle.addEventListener('click', toggleMobileSidebar);
-    }
-});
 
 // --- ALIASES & HELPERS ---
 
@@ -296,7 +253,7 @@ function updatePerubahanUI(settings) {
              const destinationStr = `Perubahan ${tahapAktif}`;
              
              copyBtn.innerHTML = `<i class="bi bi-files"></i> Pindahkan Ajuan Diterima (${sourceStr} &rarr; ${destinationStr})`;
-             copyBtn.title = `Salin otomatis semua ajuan 'Diterima' dari ${sourceStr} ke ${destinationStr}`;
+             copyBtn.title = `Salin otomatis semua ajuan 'Diterima' dari ${sourceStr} ke ${destinationType}`;
         } else {
              copyBtn.style.display = 'none';
         }
@@ -347,8 +304,8 @@ async function recalculateProdiSummary(prodiId) {
         // Clear cache dashboard agar UI refresh
         STATE.direktoratSummaryData = []; 
         
-    } catch (error) {
-        console.error(`[SUMMARY RPC] Failed for ${prodiId}:`, error);
+    } catch (e) {
+        console.error(`[SUMMARY RPC] Failed for ${prodiId}:`, e);
     }
 }
 
@@ -458,7 +415,7 @@ async function loadInitialData() {
 async function refreshGrubBelanjaData() {
     const cached = getCache('cache_allGrubBelanja');
     if(cached) { STATE.allGrubBelanja = cached; } else {
-        const { data } = await sb.from('grub_belanja')('ID_Grub, Nama_Grub');
+        const { data } = await sb.from('grub_belanja').select('ID_Grub, Nama_Grub');
         STATE.allGrubBelanja = data || [];
         setCache('cache_allGrubBelanja', STATE.allGrubBelanja);
     }
@@ -589,7 +546,21 @@ function renderAjuanTable(data, tipe) {
     data.forEach(r => {
         const total = Number(r.Total).toLocaleString('id-ID');
         const badgeClass = r.Status === 'Diterima' ? 'bg-success' : (r.Status === 'Ditolak' ? 'bg-danger' : 'bg-secondary');
-        const blocked = r.Is_Blocked ? '<span class="badge bg-dark ms-1">BLOCKED</span>' : '';
+        
+        // --- MODIFIED BLOCK DISPLAY FOR SIMPLE VIEW ---
+        const nominalBlokir = Number(r.Nominal_Blokir) || 0;
+        const budgetBersih = Number(r.Total) - nominalBlokir;
+
+        let blockedIndicator = '';
+        if (r.Status === 'Diterima' && nominalBlokir > 0) {
+            blockedIndicator = budgetBersih <= 0 
+                ? `<span class="badge bg-danger ms-1">BLOKIR PENUH</span>`
+                : `<span class="badge bg-warning text-dark ms-1">BLOKIR SEBAGIAN</span>`;
+        } else if (r.Is_Blocked) {
+            // Fallback for old boolean block if Nominal_Blokir is 0
+            blockedIndicator = `<span class="badge bg-dark ms-1">BLOCKED (Old)</span>`;
+        }
+        // --- END MODIFIED BLOCK DISPLAY ---
         
         html += `<tr>
             <td>
@@ -597,7 +568,7 @@ function renderAjuanTable(data, tipe) {
                 <div class="text-muted small">${escapeHtml(r.Judul_Kegiatan)}</div>
             </td>
             <td class="text-end font-monospace">Rp ${total}</td>
-            <td class="text-center"><span class="badge ${badgeClass}">${r.Status}</span>${blocked}</td>
+            <td class="text-center"><span class="badge ${badgeClass}">${r.Status}</span>${blockedIndicator}</td>
             <td>
                 <button class="btn btn-sm btn-outline-primary" onclick="window.openHistoryModal('${r.ID_Ajuan}', '${escapeHtml(r.Nama_Ajuan)}')"><i class="bi bi-clock"></i></button>
             </td>
@@ -796,7 +767,7 @@ if (filterKelompokRekapan) {
                  const isAwalTable = tableName === 'ajuan';
 
                  const { data: rawData, error } = await sb.from(tableName)
-                    .select(`Total, Status, Tipe_Ajuan, Is_Blocked, ${RPD_SELECT_COLUMNS}`)
+                    .select(`Total, Status, Tipe_Ajuan, Is_Blocked, Nominal_Blokir, ${RPD_SELECT_COLUMNS}`) // <<< ADD Nominal_Blokir
                     .eq('ID_Prodi', prodiId);
                 
                  if (error) {
@@ -806,21 +777,24 @@ if (filterKelompokRekapan) {
 
                  rawData.forEach(ajuan => {
                     const total = Number(ajuan.Total) || 0;
-                    const isBlocked = !!ajuan.Is_Blocked;
+                    const nominalBlokir = Number(ajuan.Nominal_Blokir) || 0; 
+                    const budgetBersih = total - nominalBlokir;              
+
+                    // Although Nominal_Blokir is primary, we keep Is_Blocked check for legacy/integrity
+                    const isBlocked = !!ajuan.Is_Blocked; 
 
                     totalDiajukanOverall += total;
 
-                    if (ajuan.Status === 'Diterima' && !isBlocked) {
+                    // Status must be 'Diterima' AND budgetBersih > 0 
+                    if (ajuan.Status === 'Diterima' && budgetBersih > 0) { 
+                        
                         // If we are in the Awal table, add to Awal total
                         if (isAwalTable) {
-                            totalDiterimaAwalBersih += total;
+                            totalDiterimaAwalBersih += budgetBersih; 
                         } 
                         
-                        // logic for Final Budget:
-                        // Note: If 'Perubahan' entries represent the *difference* (+/-), simply summing them is correct.
-                        // If 'Perubahan' entries represent the *new full value* of a specific item, logic depends on ID tracking.
-                        // Assuming standard SiPandai logic: All 'Diterima' items in active tables constitute the budget.
-                        totalDiterimaFinalBersih += total;
+                        // Final Budget uses the current stage's budgetBersih
+                        totalDiterimaFinalBersih += budgetBersih; 
 
                         // RPD & Realisasi aggregation
                         RPD_MONTHS.forEach(m => {
@@ -1034,6 +1008,7 @@ async function loadRekapanRealisasi() {
                 Total,
                 Grub_Belanja_Utama,
                 ID_Kelompok,
+                Nominal_Blokir,
                 ${RPD_SELECT_COLUMNS}
             `)
             .filter('Status', 'eq', 'Diterima')
@@ -1063,20 +1038,28 @@ async function loadRekapanRealisasi() {
         const aggregatedData = {};
         
         data.forEach(ajuan => {
+            
+            // --- MODIFIED: Use Budget Bersih for Aggregation ---
+            const total = Number(ajuan.Total) || 0;
+            const nominalBlokir = Number(ajuan.Nominal_Blokir) || 0;
+            const budgetBersih = total - nominalBlokir; 
+            
+            if (budgetBersih <= 0) return; // Skip fully blocked items
+
             const key = aggregationKey(ajuan);
             if (!aggregatedData[key]) {
                 aggregatedData[key] = {
                     ID_Prodi: ajuan.ID_Prodi,
                     Grub_Belanja_Utama: ajuan.Grub_Belanja_Utama,
                     ID_Kelompok: ajuan.ID_Kelompok,
-                    Total_Diterima: 0,
+                    Total_Diterima_Bersih: 0, // Using Total_Diterima_Bersih
                     Total_RPD: 0,
                     Total_Realisasi: 0,
                 };
             }
             
             // Sum Total Diterima (Total Ajuan)
-            aggregatedData[key].Total_Diterima += Number(ajuan.Total) || 0;
+            aggregatedData[key].Total_Diterima_Bersih += budgetBersih;
 
             // Sum RPD and Realisasi across all months
             RPD_MONTHS.forEach(m => {
@@ -1156,7 +1139,7 @@ async function performPindahkanAjuan() {
             .from(sourceTableName)
             .select("*")
             .eq("Status", "Diterima")
-            .eq("Is_Blocked", false);
+            .eq("Is_Blocked", false); // Masih mengandalkan Is_Blocked meskipun Nominal_Blokir > 0
 
         if (STATE.role === 'prodi') {
              acceptedQuery = acceptedQuery.eq('ID_Prodi', STATE.id); // <--- FILTER KRITIS UNTUK PRODI
@@ -1199,7 +1182,8 @@ async function performPindahkanAjuan() {
             "Tipe_Ajuan": destinationType,
             "Timestamp": new Date().toISOString(),
             "Komentar": a.Komentar || [], // Carry over existing comments if any
-            "Is_Blocked": false,
+            "Is_Blocked": !!a.Is_Blocked,
+            "Nominal_Blokir": Number(a.Nominal_Blokir) || 0, // <<< INCLUDE Nominal_Blokir
             "Catatan_Reviewer": null,
             "ID_Ajuan_Asal": String(a.ID_Ajuan), 
 
@@ -1246,7 +1230,7 @@ async function performPindahkanAjuan() {
 
         logActivity(
             "Pindahkan Ajuan Diterima",
-            `Menyalin ${toInsert.length} ajuan dari tabel ${sourceTableName} ke tabel ${destinationTableName}`
+            `Menyalin ${toInsert.length} item dari tabel ${sourceTableName} ke tabel ${destinationTableName}`
         );
 
         // 5. Reload tampilan daftar perubahan
@@ -1304,17 +1288,15 @@ async function loadMatrixSemulaMenjadi() {
         console.time("MatrixFetch"); // Debug kecepatan
 
         // 1. SIAPKAN QUERY (Hanya ambil kolom yg diperlukan untuk performa)
-        const selectCols = "ID_Ajuan, ID_Prodi, Nama_Ajuan, Total, ID_Ajuan_Asal, Judul_Kegiatan";
+        const selectCols = "ID_Ajuan, ID_Prodi, Nama_Ajuan, Total, Nominal_Blokir, ID_Ajuan_Asal, Judul_Kegiatan"; // <<< ADD Nominal_Blokir
         
         let queryMenjadi = sb.from(tableMenjadi)
             .select(selectCols)
-            .eq("Status", "Diterima")
-            .eq("Is_Blocked", false);
+            .eq("Status", "Diterima"); // Filter status Diterima
 
         let querySemula = sb.from(tableSemula)
             .select(selectCols)
-            .eq("Status", "Diterima")
-            .eq("Is_Blocked", false);
+            .eq("Status", "Diterima");
 
         // Filter Prodi jika bukan Direktorat
         if (STATE.role === 'prodi') {
@@ -1328,8 +1310,19 @@ async function loadMatrixSemulaMenjadi() {
         if (resMenjadi.error) throw resMenjadi.error;
         if (resSemula.error) throw resSemula.error;
 
-        const dataMenjadi = resMenjadi.data || [];
-        const dataSemula = resSemula.data || [];
+        const dataMenjadiRaw = resMenjadi.data || [];
+        const dataSemulaRaw = resSemula.data || [];
+        
+        // KRITIS: Hitung Budget Bersih untuk Matrix
+        // Data Menjadi (Sekarang): Total - Nominal_Blokir
+        const dataMenjadi = dataMenjadiRaw
+            .map(d => ({ ...d, Budget_Bersih: Number(d.Total || 0) - Number(d.Nominal_Blokir || 0) }))
+            .filter(d => d.Budget_Bersih > 0); // Hanya hitung ajuan yang memiliki budget bersih > 0
+            
+        // Data Semula (Lama): Total - Nominal_Blokir
+        const dataSemula = dataSemulaRaw
+            .map(d => ({ ...d, Budget_Bersih: Number(d.Total || 0) - Number(d.Nominal_Blokir || 0) }))
+            .filter(d => d.Budget_Bersih > 0); // Hanya hitung ajuan yang memiliki budget bersih > 0
 
         console.timeEnd("MatrixFetch");
 
@@ -1354,12 +1347,12 @@ async function loadMatrixSemulaMenjadi() {
             // Coba cari pasangannya di data Semula
             if (idAsal && semulaMap.has(idAsal)) {
                 itemLama = semulaMap.get(idAsal);
-                nominalSemula = Number(itemLama.Total) || 0;
+                nominalSemula = itemLama.Budget_Bersih; // <<< USE Budget_Bersih
                 // Hapus dari map untuk menandai sudah diproses (opsional, jika ingin melihat yg dihapus)
                 semulaMap.delete(idAsal); 
             }
 
-            const nominalMenjadi = Number(itemBaru.Total) || 0;
+            const nominalMenjadi = itemBaru.Budget_Bersih; // <<< USE Budget_Bersih
             const selisih = nominalMenjadi - nominalSemula;
 
             // Masukkan ke row jika ada perubahan atau barang baru, atau sekadar ingin menampilkan semua data aktif
@@ -1375,20 +1368,8 @@ async function loadMatrixSemulaMenjadi() {
         });
 
         // (Opsional) Jika Anda ingin menampilkan item yang DIHAPUS (ada di Semula, tidak ada di Menjadi)
-        // Uncomment blok di bawah ini jika diinginkan:
-        /*
-        semulaMap.forEach((itemLama) => {
-             matrixRows.push({
-                ID_Prodi: itemLama.ID_Prodi,
-                Nama_Ajuan: itemLama.Nama_Ajuan,
-                Judul_Kegiatan: itemLama.Judul_Kegiatan,
-                Semula: Number(itemLama.Total) || 0,
-                Menjadi: 0,
-                Selisih: 0 - (Number(itemLama.Total) || 0),
-                Status: 'Dihapus'
-            });
-        });
-        */
+        // Item yang dihapus adalah item di semulaMap yang tersisa.
+        // Hapus logikanya jika tidak diinginkan (seperti di skrip asli)
 
         // 4. SORTING (Agar rapi per Unit)
         matrixRows.sort((a, b) => {
@@ -1811,6 +1792,7 @@ function renderUserGuide() {
                 <button class="accordion-button collapsed fw-bold" data-bs-toggle="collapse" data-bs-target="#pp4">
                     <i class="bi bi-graph-down-arrow me-2 text-danger"></i> 4. Melaporkan Realisasi Anggaran
                 </button>
+            </button>
             </h2>
             <div id="pp4" class="accordion-collapse collapse">
                 <div class="accordion-body">
@@ -2147,7 +2129,7 @@ function renderUserGuide() {
                         <li><i class="bi bi-check2-square text-success"></i> <strong>Terima</strong> – Menyetujui ajuan.</li>
                         <li><i class="bi bi-arrow-counterclockwise text-warning"></i> <strong>Minta Revisi</strong> – Meminta perbaikan (dengan catatan).</li>
                         <li><i class="bi bi-x-square text-danger"></i> <strong>Tolak</strong> – Tidak menyetujui ajuan.</li>
-                        <li><i class="bi bi-lock-fill text-secondary"></i> <strong>Blokir</strong> – Menahan ajuan agar tidak ikut dalam RPD.</li>
+                        <li><i class="bi bi-lock-fill text-secondary"></i> <strong>Atur Blokir</strong> – Mengatur nominal anggaran yang diblokir agar tidak masuk RPD/Realisasi.</li>
                     </ul>
 
                     <div class="alert alert-info mt-3">
@@ -2390,7 +2372,8 @@ function renderUserGuide() {
                             <li>Buka menu <strong>RPD</strong>.</li>
                             <li>Sistem menampilkan daftar barang yang disetujui.</li>
                             <li>Isi kolom <strong>Jan - Des</strong> sesuai rencana pembelanjaan.</li>
-                            <li>Pastikan kolom <strong>Sisa</strong> bernilai 0 (Total RPD = Total Diterima).</li>
+                            <li>Perhatikan <strong>Nominal Blokir</strong>. Batas alokasi RPD adalah total diterima dikurangi nominal yang diblokir.</li>
+                            <li>Pastikan kolom <strong>Sisa</strong> bernilai 0 (Total RPD = Budget Bersih).</li>
                             <li>Klik tombol <i class="bi bi-save"></i> <strong>Simpan</strong> di sebelah kanan setiap baris.</li>
                         </ol>
                     </div>
@@ -2467,8 +2450,8 @@ function renderUserGuide() {
                                     <li><button class="btn btn-sm btn-danger disabled"><i class="bi bi-x-square"></i></button> Tolak</li>
                                 </ul>
                             </li>
+                            <li><strong>Atur Nominal Blokir:</strong> Gunakan tombol <i class="bi bi-lock"></i> pada ajuan yang Diterima untuk mengatur nominal yang tidak boleh dialokasikan ke RPD.</li>
                             <li><strong>Review Massal:</strong> Centang kotak di sebelah kiri baris (atau "Pilih Semua"), lalu gunakan tombol aksi massal yang muncul di atas tabel.</li>
-                            <li><strong>Blokir:</strong> Gunakan tombol <i class="bi bi-lock"></i> untuk memblokir ajuan Diterima agar tidak masuk perhitungan RPD (misal: dana ditahan).</li>
                         </ul>
                     </div>
                 </div>
@@ -3103,6 +3086,10 @@ async function initializeApp(userData) {
       calcA4: null, calcS4: null,
       calcA5: null, calcS5: null,
       calcA6: null, calcS6: null,
+      
+      // NEW: Initialize Nominal_Blokir and Is_Blocked for new submissions
+      Nominal_Blokir: 0,
+      Is_Blocked: false
     };
     
     STATE.stagingList.push(payload);
@@ -3185,6 +3172,7 @@ async function initializeApp(userData) {
             Status: "Menunggu Review", 
             Komentar: [], 
             Is_Blocked: false, 
+            Nominal_Blokir: 0, // <<< Set Nominal_Blokir default 0
             Timestamp: sbTimestamp()
         }));
         
@@ -3350,6 +3338,7 @@ safeAddClickListener('btn-refresh-matrix', loadMatrixSemulaMenjadi);
                       Status: "Menunggu Review", 
                       Komentar: [], 
                       Is_Blocked: false, 
+                      Nominal_Blokir: 0, // <<< Set Nominal_Blokir default 0
                       Timestamp: sbTimestamp()
                   };
                   
@@ -3786,7 +3775,14 @@ function validateSubmissionDeadline(tipeAjuan) {
       const status = r.Status;
       const ajuanId = String(r.ID_Ajuan); // Ensure string conversion here
       const ajuanNama = r.Nama_Ajuan;
-      const isBlocked = !!r.Is_Blocked;
+      
+      // NEW: Nominal Blokir logic
+      const currentTotal = Number(r.Total) || 0;
+      const nominalBlokir = Number(r.Nominal_Blokir) || 0;
+      const isBlockedFull = currentTotal > 0 && nominalBlokir >= currentTotal;
+      const isBlockedPartial = nominalBlokir > 0 && nominalBlokir < currentTotal;
+      const isBlockedAny = nominalBlokir > 0;
+
 
       let html = `<div class="btn-group btn-group-sm" role="group">`;
       
@@ -3822,14 +3818,45 @@ function validateSubmissionDeadline(tipeAjuan) {
                // Allow changing status back if needed
               html += `<button class="btn btn-info" onclick="window.openReviewModal('${ajuanId}', 'Menunggu Review', '${tipe}', '${status}')" title="Kembalikan ke Review"><i class="bi bi-arrow-left-square"></i></button>`;
           }
-          
-          // Block/Unblock toggle
+
+          // Block/Unblock Nominal toggle (Only visible if Diterima)
           if (status === 'Diterima') {
-              const blockAction = isBlocked ? 'Buka Blokir' : 'Blokir';
-              const blockIcon = isBlocked ? 'bi-lock-open' : 'bi-lock';
-              const blockClass = isBlocked ? 'btn-outline-warning' : 'btn-outline-dark';
-              html += `<button class="btn ${blockClass} ms-2" onclick="window.toggleBlockAjuan('${ajuanId}', ${!isBlocked}, '${tipe}')" title="${blockAction} (Hapus dari RPD/Realisasi)"><i class="bi ${blockIcon}"></i></button>`;
+              let blockIcon = 'bi-lock-open';
+              let blockClass = 'btn-outline-dark';
+              let blockTitle = `Atur Nominal Blokir`;
+
+              if (isBlockedFull) {
+                  blockIcon = 'bi-lock-fill';
+                  blockClass = 'btn-danger';
+                  blockTitle = `Blokir Penuh. Klik untuk Buka/Ubah.`;
+              } else if (isBlockedPartial) {
+                  blockIcon = 'bi-lock';
+                  blockClass = 'btn-warning';
+                  blockTitle = `Diblokir Rp ${nominalBlokir.toLocaleString('id-ID')}. Klik untuk Ubah.`;
+              }
+
+              html += `<button class="btn ${blockClass} ms-2" onclick="window.openBlockModal('${ajuanId}', ${currentTotal}, '${tipe}')" title="${blockTitle}"><i class="bi ${blockIcon}"></i></button>`;
           }
+      }
+
+      // --- PRODI Actions (Block/Unblock for items not yet Diterima) ---
+      if (isProdi && status !== 'Diterima') {
+          // Block/Unblock Nominal toggle for Prodi
+          let blockIcon = 'bi-lock-open';
+          let blockClass = 'btn-outline-dark';
+          let blockTitle = `Atur Nominal Blokir`;
+
+          if (isBlockedFull) {
+              blockIcon = 'bi-lock-fill';
+              blockClass = 'btn-danger';
+              blockTitle = `Blokir Penuh. Klik untuk Buka/Ubah.`;
+          } else if (isBlockedPartial) {
+              blockIcon = 'bi-lock';
+              blockClass = 'btn-warning';
+              blockTitle = `Diblokir Rp ${nominalBlokir.toLocaleString('id-ID')}. Klik untuk Ubah.`;
+          }
+
+          html += `<button class="btn ${blockClass} ms-2" onclick="window.openBlockModal('${ajuanId}', ${currentTotal}, '${tipe}')" title="${blockTitle}"><i class="bi ${blockIcon}"></i></button>`;
       }
 
       html += `</div>`;
@@ -3934,6 +3961,7 @@ let query = sb.from(targetTableName)
         Total,
         Status,
         Is_Blocked,
+        Nominal_Blokir,
         Tipe_Ajuan,
         Status_Revisi,
         Data_Dukung,
@@ -3944,7 +3972,7 @@ let query = sb.from(targetTableName)
         Timestamp,
         calcA1, calcS1, calcA2, calcS2, calcA3, calcS3, 
         calcA4, calcS4, calcA5, calcS5, calcA6, calcS6
-    `) // <-- Perhatikan: Kolom 'Komentar' DIHAPUS agar ringan
+    `) // <-- Nominal_Blokir ditambahkan di sini
     .eq('Tipe_Ajuan', currentTipe); // <-- REF ACT
 
         // Use getSafeValue for filter elements in case they are hidden/missing
@@ -3977,8 +4005,9 @@ let query = sb.from(targetTableName)
                 data.ID_Ajuan = String(data.ID_Ajuan || data.id);
                 if (data.ID_Ajuan_Asal) data.ID_Ajuan_Asal = String(data.ID_Ajuan_Asal);
                 
-                // PENTING: Pastikan Total selalu ada sebagai angka, meskipun 0
+                // PENTING: Pastikan Total, Nominal_Blokir selalu ada sebagai angka
                 data.Total = Number(data.Total) || 0; 
+                data.Nominal_Blokir = Number(data.Nominal_Blokir) || 0; 
                 
                 return data;
             });
@@ -4001,7 +4030,7 @@ let query = sb.from(targetTableName)
                         .select('*')
                         .in('ID_Ajuan', asalIds);
                     
-                    if (originalError) console.warn('Error fetching original ajuan:', originalError);
+                    if (originalError) console.log('Error fetching original ajuan (Non-fatal):', originalError);
 
                     (originalData || []).forEach(doc => {
                         // Ensure original IDs are also treated as strings in the map keys
@@ -4064,48 +4093,150 @@ let query = sb.from(targetTableName)
       tabDaftarPerubahan.addEventListener('shown.bs.tab', () => refreshAjuanTablePerubahan(false));
   }
   
-  // --- MIGRATED TO SUPABASE: toggleBlockAjuan (MODIFIED) ---
-  window.toggleBlockAjuan = async (id, blockStatus, tipe) => {
-      const ajuanId = String(id);
-      const actionText = blockStatus ? 'Blokir' : 'Buka Blokir';
-      if (!confirm(`Yakin ingin ${actionText.toLowerCase()} ajuan ID: ${ajuanId}? Ajuan yang diblokir tidak akan dimasukkan dalam perhitungan RPD dan Realisasi, meskipun statusnya Diterima.`)) {
-          return;
+  // --- NEW BLOCK NOMINAL FUNCTIONS ---
+
+  // Helper function to update sisa tersedia
+  function updateBlockSisa(total, blocked) {
+    const sisa = total - blocked;
+    setElValue('block-sisa-tersedia', `Rp ${sisa.toLocaleString('id-ID')}`);
+    const inputEl = document.getElementById('block-nominal-input');
+    const errorEl = document.getElementById('block-error-message');
+    if (inputEl && errorEl) {
+      if (blocked > total) {
+        inputEl.classList.add('is-invalid');
+        errorEl.textContent = 'Nominal blokir tidak boleh melebihi total ajuan.';
+        errorEl.style.display = 'block';
+      } else {
+        inputEl.classList.remove('is-invalid');
+        errorEl.style.display = 'none';
       }
-      
-      const targetTableName = getAjuanTableName(tipe); // <-- REF ACT: Tentukan tabel tujuan
+    }
+  }
 
-      showLoader(true);
-      try {
-          // 1. Fetch current ajuan data to get Prodi ID
-          const { data: ajuan, error: fetchError } = await sb.from(targetTableName).select('ID_Prodi').eq('ID_Ajuan', ajuanId).maybeSingle(); // <-- REF ACT
-          if (fetchError || !ajuan) throw new Error("Ajuan tidak ditemukan.");
-          const prodiId = ajuan.ID_Prodi;
+  // Event listeners for block modal
+  const blockNominalInput = document.getElementById('block-nominal-input');
+  if (blockNominalInput) {
+    blockNominalInput.addEventListener('input', function() {
+      const total = Number(getElValue('block-total-ajuan')) || 0;
+      const blocked = Number(this.value) || 0;
+      updateBlockSisa(total, blocked);
+    });
+  }
 
-          // 2. Supabase Update
-          const { error } = await sb.from(targetTableName) // <-- REF ACT
-              .update({ Is_Blocked: blockStatus })
-              .eq('ID_Ajuan', ajuanId);
+  safeAddClickListener('btn-save-block-nominal', async () => {
+    const ajuanId = getElValue('block-id-ajuan');
+    const tipe = getElValue('block-tipe-ajuan');
+    const blockAmountStr = getElValue('block-nominal-input');
+    const blockAmount = parseFloat(blockAmountStr.replace(/\./g, '').replace(/,/g, '')) || 0;
+    const currentTotal = Number(getElValue('block-total-ajuan')) || 0;
 
-          if (error) throw error;
-          
-          await logActivity('Toggle Block Ajuan', `${actionText} ajuan ID: ${ajuanId} (${tipe}) di tabel ${targetTableName}.`);
-          logHistory(ajuanId, `Ajuan ${blockStatus ? 'Diblokir' : 'Dibuka Blokir'}`, `Status blokir diubah menjadi ${blockStatus} di tabel ${targetTableName}.`);
+    if (blockAmount > currentTotal) {
+      showToast('Nominal blokir tidak boleh melebihi total ajuan.', 'danger');
+      return;
+    }
 
-          showToast(`Ajuan ${ajuanId.substring(0,6)}.. berhasil di${blockStatus ? 'blokir' : 'buka blokir'}.`);
-          
-          // --- Trigger Recalculation ---
-          await recalculateProdiSummary(prodiId);
-          // --- End Trigger ---
+    const isBlocking = blockAmount > 0;
+    await saveBlockAmount(ajuanId, blockAmount, isBlocking, tipe);
 
-          if(tipe.startsWith('Awal')) refreshAjuanTableAwal(true); else refreshAjuanTablePerubahan(true);
-          loadDashboardData(true); 
+    // Close modal after save
+    const modalEl = document.getElementById('blockAjuanModal');
+    if (modalEl) {
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
+    }
+  });
 
-      } catch(error) { 
-          showToast(`Gagal ${actionText.toLowerCase()}: ${error.message}`, 'danger'); 
-      } finally { 
-          showLoader(false); 
-      }
+  window.openBlockModal = async (id, currentTotal, tipe) => {
+    if (STATE.role !== 'prodi' && STATE.role !== 'direktorat') {
+        showToast("Akses ditolak.", "danger");
+        return;
+    }
+    const ajuanId = String(id);
+
+    // Fetch current Nominal_Blokir to pre-fill
+    const targetTableName = getAjuanTableName(tipe);
+    const { data: currentAjuan, error } = await sb.from(targetTableName)
+        .select('Nominal_Blokir')
+        .eq('ID_Ajuan', ajuanId)
+        .maybeSingle();
+
+    if (error) {
+        showToast("Gagal memuat data ajuan.", "danger");
+        return;
+    }
+
+    const currentBlocked = Number(currentAjuan?.Nominal_Blokir) || 0;
+
+    // Populate modal fields
+    setElValue('block-id-ajuan', ajuanId);
+    setElValue('block-tipe-ajuan', tipe);
+    setElValue('block-total-ajuan', currentTotal);
+    setElValue('block-total-diterima', `Rp ${Number(currentTotal).toLocaleString('id-ID')}`);
+    setElValue('block-nominal-input', currentBlocked);
+
+    // Update sisa tersedia
+    updateBlockSisa(currentTotal, currentBlocked);
+
+    // Show modal
+    const modalEl = document.getElementById('blockAjuanModal');
+    if (modalEl) {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+    }
   };
+
+
+  window.saveBlockAmount = async (ajuanId, blockAmount, isBlocking, tipe) => {
+    const targetTableName = getAjuanTableName(tipe);
+    showLoader(true);
+    const actionText = isBlocking ? 'Set Nominal Blokir' : 'Buka Blokir';
+
+    try {
+        // 1. Fetch current ajuan data to get Prodi ID and Total
+        const { data: ajuan, error: fetchError } = await sb.from(targetTableName).select('ID_Prodi, Total').eq('ID_Ajuan', ajuanId).maybeSingle();
+        if (fetchError || !ajuan) throw new Error("Ajuan tidak ditemukan.");
+        const prodiId = ajuan.ID_Prodi;
+        const currentTotal = Number(ajuan.Total) || 0;
+        
+        // Final sanity check
+        if (blockAmount > currentTotal) blockAmount = currentTotal;
+
+        // 2. Supabase Update
+        const { error } = await sb.from(targetTableName)
+            .update({ 
+                Is_Blocked: isBlocking, // Update boolean status based on amount > 0
+                Nominal_Blokir: blockAmount // Save the blocked amount
+            })
+            .eq('ID_Ajuan', ajuanId);
+
+        if (error) throw error;
+        
+        const budgetBersih = currentTotal - blockAmount;
+        
+        const msg = isBlocking 
+            ? `Nominal blokir Rp ${blockAmount.toLocaleString('id-ID')} berhasil disimpan. Budget Bersih: Rp ${budgetBersih.toLocaleString('id-ID')}.`
+            : `Blokir ajuan ID ${ajuanId.substring(0,6)}.. dibuka penuh.`;
+
+        await logActivity('Set Nominal Blokir', `${actionText} ajuan ID: ${ajuanId} (${tipe}) sebesar Rp ${blockAmount.toLocaleString('id-ID')}.`);
+        logHistory(ajuanId, `Nominal Blokir Diperbarui`, `Anggaran diblokir sebesar Rp ${blockAmount.toLocaleString('id-ID')}. Anggaran bersih untuk RPD: Rp ${budgetBersih.toLocaleString('id-ID')}.`);
+
+        showToast(msg, "success");
+        
+        // --- Trigger Recalculation ---
+        await recalculateProdiSummary(prodiId);
+        // --- End Trigger ---
+
+        if(tipe.startsWith('Awal')) refreshAjuanTableAwal(true); else refreshAjuanTablePerubahan(true);
+        loadDashboardData(true); 
+
+    } catch(error) { 
+        showToast(`Gagal ${actionText.toLowerCase()}: ${error.message}`, 'danger'); 
+    } finally { 
+        showLoader(false); 
+    }
+  };
+  
+  // --- MIGRATED TO SUPABASE: toggleBlockAjuan (DELETED/REPLACED by saveBlockAmount) ---
 
 
   function renderAjuanTable(rows, tipe, originalDataMap = null) {
@@ -4134,24 +4265,32 @@ let query = sb.from(targetTableName)
         rows.forEach(r => {
             const original = originalDataMap && r.ID_Ajuan_Asal && originalDataMap.has(r.ID_Ajuan_Asal) ? originalDataMap.get(r.ID_Ajuan_Asal) : {};
             const totalLama = Number(original.Total) || 0;
+            const nominalBlokirLama = Number(original.Nominal_Blokir) || 0;
+            const budgetBersihLama = totalLama - nominalBlokirLama;
+            
             const totalBaru = Number(r.Total) || 0;
-            const selisih = totalBaru - totalLama;
+            const nominalBlokirBaru = Number(r.Nominal_Blokir) || 0;
+            const budgetBersihBaru = totalBaru - nominalBlokirBaru;
+            
+            const selisih = budgetBersihBaru - budgetBersihLama; // Selisih berdasarkan Budget Bersih
             totalSelisih += selisih;
             
-            const totalValue = Number(r.Total) || 0; 
-            grandTotal += totalValue; 
+            grandTotal += totalBaru; // Total Ajuan (Bruto)
             
-            // Accepted total excludes blocked items
-            if (r.Status === 'Diterima' && !r.Is_Blocked) acceptedTotal += totalValue; 
-            else if (r.Status === 'Ditolak') rejectedTotal += totalValue; 
+            // Accepted total based on Budget Bersih
+            if (r.Status === 'Diterima' && budgetBersihBaru > 0) acceptedTotal += budgetBersihBaru; 
+            else if (r.Status === 'Ditolak') rejectedTotal += totalBaru; // Tolak menggunakan Total Bruto
         });
     } else {
          rows.forEach(r => { 
             const totalValue = Number(r.Total) || 0; 
+            const nominalBlokir = Number(r.Nominal_Blokir) || 0;
+            const budgetBersih = totalValue - nominalBlokir;
+
             grandTotal += totalValue; 
             
-            // Accepted total excludes blocked items
-            if (r.Status === 'Diterima' && !r.Is_Blocked) acceptedTotal += totalValue; 
+            // Accepted total based on Budget Bersih
+            if (r.Status === 'Diterima' && budgetBersih > 0) acceptedTotal += budgetBersih; 
             else if (r.Status === 'Ditolak') rejectedTotal += totalValue; 
         });
     }
@@ -4162,16 +4301,22 @@ let query = sb.from(targetTableName)
         
         if (isPerubahan) {
             const selisihClass = totalSelisih >= 0 ? 'text-success' : 'text-danger';
-            summaryHtml += `<div><strong class="${selisihClass}">Total Selisih:</strong> Rp ${totalSelisih.toLocaleString('id-ID')}</div>`;
+            summaryHtml += `<div><strong class="${selisihClass}">Total Selisih (Bersih):</strong> Rp ${totalSelisih.toLocaleString('id-ID')}</div>`;
             
             if (STATE.role === 'direktorat') {
                 const selisihByProdi = {};
                 rows.forEach(r => {
                     const prodiId = r.ID_Prodi;
-                    const original = originalDataMap && r.ID_Ajuan_Asal && originalDataMap.has(r.ID_Ajuan_Asal) ? originalDataMap.get(r.ID_Ajuan_Asal) : {};
+                    const original = originalDataMap && r.ID_Ajuan_Ajuan_Asal && originalDataMap.has(r.ID_Ajuan_Asal) ? originalDataMap.get(r.ID_Ajuan_Asal) : {};
                     const totalLama = Number(original.Total) || 0;
+                    const nominalBlokirLama = Number(original.Nominal_Blokir) || 0;
+                    const budgetBersihLama = totalLama - nominalBlokirLama;
+                    
                     const totalBaru = Number(r.Total) || 0;
-                    const selisih = totalBaru - totalLama;
+                    const nominalBlokirBaru = Number(r.Nominal_Blokir) || 0;
+                    const budgetBersihBaru = totalBaru - nominalBlokirBaru;
+                    
+                    const selisih = budgetBersihBaru - budgetBersihLama;
                     selisihByProdi[prodiId] = (selisihByProdi[prodiId] || 0) + selisih;
                 });
                 
@@ -4181,7 +4326,7 @@ let query = sb.from(targetTableName)
                     return `<span class="me-2"><span class="badge bg-light text-dark fw-normal">${prodiId}</span> <strong class="${cls}">Rp ${selisihVal.toLocaleString('id-ID')}</strong></span>`;
                 }).join('');
                 
-                summaryHtml += `<div class="mt-2 pt-2 border-top w-100"><strong class="d-block small text-muted">Selisih Per Unit:</strong> ${prodiSelisihHtml}</div>`;
+                summaryHtml += `<div class="mt-2 pt-2 border-top w-100"><strong class="d-block small text-muted">Selisih Per Unit (Bersih):</strong> ${prodiSelisihHtml}</div>`;
             }
         }
         
@@ -4196,15 +4341,15 @@ let query = sb.from(targetTableName)
         "Diterima": "status-diterima", 
         "Ditolak": "status-ditolak", 
         "Revisi": "status-revisi",
-        "Blocked": "status-diblokir" 
+        // Note: 'Blocked' status is now managed via Nominal_Blokir > 0
     };
 
     if (isPerubahan) {
-        let html = `<table class="table table-hover align-middle" id="table-export-${sanitizedTipe}" style="min-width: 2200px;"><thead class="table-light"><tr>
+        let html = `<table class="table table-hover align-middle" id="table-export-${sanitizedTipe}" style="min-width: 2400px;"><thead class="table-light"><tr>
                         <th style="width: 30px;" rowspan="2" class="align-middle"><input type="checkbox" id="select-all-ajuan-${sanitizedTipe}" title="Pilih Semua"></th>
-                        <th colspan="3" class="text-center bg-secondary-subtle">SEMULA</th>
-                        <th colspan="3" class="text-center bg-light">MENJADI</th>
-                        <th rowspan="2" class="align-middle text-end" style="min-width: 120px;">Selisih</th>
+                        <th colspan="3" class="text-center bg-secondary-subtle">SEMULA (Budget Bersih)</th>
+                        <th colspan="4" class="text-center bg-light">MENJADI (Budget Bruto & Bersih)</th>
+                        <th rowspan="2" class="align-middle text-end" style="min-width: 120px;">Selisih Bersih</th>
                         <th rowspan="2" class="align-middle text-center action-buttons">Dakung</th>
                         <th rowspan="2" class="align-middle" style="min-width: 140px;">Status</th>
                         <th rowspan="2" class="align-middle" style="min-width: 200px;">Catatan Reviewer</th>
@@ -4213,10 +4358,11 @@ let query = sb.from(targetTableName)
                       <tr class="table-light">
                         <th style="min-width: 250px;">Rincian Ajuan (Lama)</th>
                         <th style="min-width: 200px;">Detail Kuantitas (Lama)</th>
-                        <th class="text-end" style="min-width: 130px;">Total Biaya (Lama)</th>
+                        <th class="text-end" style="min-width: 130px;">Total Bersih (Lama)</th>
                         <th style="min-width: 250px;">Rincian Ajuan (Baru)</th>
                         <th style="min-width: 200px;">Detail Kuantitas (Baru)</th>
-                        <th class="text-end" style="min-width: 130px;">Total Biaya (Baru)</th>
+                        <th class="text-end" style="min-width: 130px;">Total Bruto</th>
+                        <th class="text-end" style="min-width: 130px;">Nominal Blokir</th>
                       </tr>
                     </thead><tbody>`;
         
@@ -4232,44 +4378,66 @@ let query = sb.from(targetTableName)
         const prodiNameMap = STATE.allProdi.reduce((acc, prodi) => { acc[prodi.ID_Prodi] = prodi.Nama_Prodi; return acc; }, {});
         
         sortedGrubKeys.forEach(grubKey => {
-          html += `<tr class="group-header-grub"><td colspan="12" class="fw-bold"><i class="bi bi-folder-fill"></i> ${escapeHtml(grubKey)}</td></tr>`;
+          html += `<tr class="group-header-grub"><td colspan="13" class="fw-bold"><i class="bi bi-folder-fill"></i> ${escapeHtml(grubKey)}</td></tr>`;
           const sortedKelompokKeys = Object.keys(groupedData[grubKey]).sort();
           sortedKelompokKeys.forEach(kelompokKey => {
-              html += `<tr class="group-header-kelompok"><td colspan="12" class="fw-bold ps-4"><i class="bi bi-tags-fill"></i> Kelompok: ${escapeHtml(kelompokKey)}</td></tr>`;
+              html += `<tr class="group-header-kelompok"><td colspan="13" class="fw-bold ps-4"><i class="bi bi-tags-fill"></i> Kelompok: ${escapeHtml(kelompokKey)}</td></tr>`;
               const sortedKegiatanKeys = Object.keys(groupedData[grubKey][kelompokKey]).sort();
               sortedKegiatanKeys.forEach(kegiatanKey => {
-                  html += `<tr class="group-header-kegiatan"><td colspan="12" class="fw-bold ps-5"><i class="bi bi-collection-fill text-secondary"></i> Kegiatan: ${escapeHtml(kegiatanKey)}</td></tr>`;
+                  html += `<tr class="group-header-kegiatan"><td colspan="13" class="fw-bold ps-5"><i class="bi bi-collection-fill text-secondary"></i> Kegiatan: ${escapeHtml(kegiatanKey)}</td></tr>`;
                   groupedData[grubKey][kelompokKey][kegiatanKey].forEach(r => {
                       const ajuanIdString = String(r.ID_Ajuan);
                       const original = originalDataMap && r.ID_Ajuan_Asal && originalDataMap.has(r.ID_Ajuan_Asal) ? originalDataMap.get(r.ID_Ajuan_Asal) : {};
-const totalLama = Number(original.Total) || 0; 
-const totalBaru = Number(r.Total) || 0;
-const selisih = totalBaru - totalLama;
+                      
+                      // Calculate Budget Bersih
+                      const totalLama = Number(original.Total) || 0; 
+                      const nominalBlokirLama = Number(original.Nominal_Blokir) || 0;
+                      const budgetBersihLama = totalLama - nominalBlokirLama;
+
+                      const totalBaru = Number(r.Total) || 0;
+                      const nominalBlokirBaru = Number(r.Nominal_Blokir) || 0;
+                      const budgetBersihBaru = totalBaru - nominalBlokirBaru;
+                      
+                      const selisih = budgetBersihBaru - budgetBersihLama;
 
                       const selisihClass = selisih > 0 ? 'text-success' : (selisih < 0 ? 'text-danger' : '');
-                      const selisihText = selisih > 0 ? `+${selisih.toLocaleString('id-ID')}` : selisih.toLocaleString('id-ID');
+                      const selisihText = selisih.toLocaleString('id-ID', { signDisplay: 'always' });
                       const dataDukungLink = r.Data_Dukung ? `<a href="${escapeHtml(r.Data_Dukung)}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Lihat"><i class="bi bi-box-arrow-up-right"></i></a>` : `<span class="text-muted small fst-italic">N/A</span>`;
                       const prodiColor = getColorForProdi(r.ID_Prodi);
                       const prodiNama = prodiNameMap[r.ID_Prodi] || r.ID_Prodi;
                       const prodiInfoHtml = STATE.role === 'direktorat' ? `<div class="small text-muted">Oleh: <strong>${escapeHtml(prodiNama)}</strong></div>` : '';
-                      const idAjuanAsal = r.ID_Ajuan_Asal ? `<span class="badge bg-light text-dark fw-normal fst-italic">Asal: ${String(r.ID_Ajuan_Asal).substring(0, 6)}..</span>` : ''; // Corrected variable name
+                      const idAjuanAsal = r.ID_Ajuan_Asal ? `<span class="badge bg-light text-dark fw-normal fst-italic">Asal: ${String(r.ID_Ajuan_Asal).substring(0, 6)}..</span>` : ''; 
                       
-                      const isBlocked = !!r.Is_Blocked;
+                      const isBlocked = nominalBlokirBaru > 0;
                       const statusKey = isBlocked ? "Blocked" : r.Status;
-                      const rowClass = isBlocked ? 'blocked-row' : ''; 
-                      const statusBadgeText = isBlocked && r.Status === 'Diterima' ? `Diterima (BLOKIR)` : (isBlocked ? `${r.Status} (BLOKIR)` : r.Status);
+                      
+                      let rowClass = '';
+                      let statusBadgeText = r.Status;
+                      let nominalBlokirHtml = '';
+                      
+                      if (r.Status === 'Diterima' && nominalBlokirBaru > 0) {
+                          statusBadgeText = nominalBlokirBaru >= totalBaru ? 'Diterima (BLOKIR PENUH)' : 'Diterima (BLOKIR SEBAGIAN)';
+                          rowClass = nominalBlokirBaru >= totalBaru ? 'blocked-full-row' : 'blocked-partial-row';
+                          nominalBlokirHtml = `<strong class="text-danger">Rp ${nominalBlokirBaru.toLocaleString('id-ID')}</strong><div class="small text-muted">Bersih: Rp ${budgetBersihBaru.toLocaleString('id-ID')}</div>`;
+                      } else {
+                          nominalBlokirHtml = `<span class="text-muted">Rp 0</span><div class="small text-success">Bersih: Rp ${budgetBersihBaru.toLocaleString('id-ID')}</div>`;
+                          rowClass = '';
+                      }
                       
                       html += `<tr class="prodi-indicator ${rowClass}" style="border-left-color: ${prodiColor};">
                                   <td><input type="checkbox" class="ajuan-checkbox-${sanitizedTipe}" data-id="${ajuanIdString}"></td>
                                   <td class="bg-secondary-subtle"><small>${escapeHtml(original.Nama_Ajuan || 'N/A')}</small></td>
                                   <td class="bg-secondary-subtle">${formatBreakdown(original)}</td>
-                                  <td class="text-end bg-secondary-subtle"><small>Rp ${totalLama.toLocaleString('id-ID')}</small></td>
+                                  <td class="text-end bg-secondary-subtle"><small>Rp ${budgetBersihLama.toLocaleString('id-ID')}</small></td>
+                                  
                                   <td><div class="d-flex justify-content-between align-items-start"><strong class="me-2">${escapeHtml(r.Nama_Ajuan)}</strong><span class="badge bg-secondary-subtle text-secondary-emphasis fw-normal text-nowrap">${ajuanIdString.substring(0, 6)}..</span></div>${prodiInfoHtml}<div class="mt-1"><span class="badge bg-info-subtle text-info-emphasis fw-normal">${escapeHtml(r.Status_Revisi || 'Ajuan Baru')}</span> ${idAjuanAsal}</div></td>
                                   <td>${formatBreakdown(r)}</td>
                                   <td class="text-end text-nowrap"><strong>Rp ${totalBaru.toLocaleString('id-ID')}</strong></td>
+                                  <td>${nominalBlokirHtml}</td>
                                   <td class="text-end text-nowrap fw-bold ${selisihClass}">${selisihText}</td>
                                   <td class="text-center action-buttons">${dataDukungLink}</td>
-                                  <td><span class="badge rounded-pill status-badge ${statusClassMap[statusKey] || statusClassMap[r.Status] || 'bg-secondary'}">${statusBadgeText}</span></td>
+                                  <td><span class="badge rounded-pill status-badge ${statusClassMap[r.Status] || 'bg-secondary'}">${statusBadgeText}</span></td>
+                                  <td><small class="text-muted fst-italic">${escapeHtml(r.Catatan_Reviewer || '')}</small></td>
                                   <td class="text-end action-buttons">${renderActionsForRow(r, tipe)}</td>
                               </tr>`;
                   });
@@ -4287,15 +4455,15 @@ const selisih = totalBaru - totalLama;
         }, {});
         const sortedGrubKeys = Object.keys(groupedData).sort(); // FIX: grubKey was undefined in this scope
         const prodiNameMap = STATE.allProdi.reduce((acc, prodi) => { acc[prodi.ID_Prodi] = prodi.Nama_Prodi; return acc; }, {});
-        let html = `<table class="table table-hover align-middle" id="table-export-${sanitizedTipe}" style="min-width: 1350px;"><thead class="table-light"><tr><th style="width: 30px;"><input type="checkbox" id="select-all-ajuan-${sanitizedTipe}"></th><th style="min-width: 250px;">Rincian Ajuan</th><th style="min-width: 200px;">Detail Kuantitas</th><th class="text-end" style="min-width: 130px;">Total Biaya</th><th class="text-center action-buttons">Dakung</th><th style="min-width: 140px;">Status</th><th style="min-width: 200px;">Catatan Reviewer</th><th class="text-end action-buttons" style="min-width: 280px;">Aksi</th></tr></thead><tbody>`;
+        let html = `<table class="table table-hover align-middle" id="table-export-${sanitizedTipe}" style="min-width: 1550px;"><thead class="table-light"><tr><th style="width: 30px;"><input type="checkbox" id="select-all-ajuan-${sanitizedTipe}"></th><th style="min-width: 250px;">Rincian Ajuan</th><th style="min-width: 200px;">Detail Kuantitas</th><th class="text-end" style="min-width: 130px;">Total Bruto</th><th class="text-end" style="min-width: 130px;">Nominal Blokir</th><th class="text-end" style="min-width: 130px;">Budget Bersih</th><th class="text-center action-buttons">Dakung</th><th style="min-width: 140px;">Status</th><th style="min-width: 200px;">Catatan Reviewer</th><th class="text-end action-buttons" style="min-width: 280px;">Aksi</th></tr></thead><tbody>`;
         sortedGrubKeys.forEach(grubKey => {
-          html += `<tr class="group-header-grub"><td colspan="8" class="fw-bold"><i class="bi bi-folder-fill"></i> ${escapeHtml(grubKey)}</td></tr>`;
+          html += `<tr class="group-header-grub"><td colspan="10" class="fw-bold"><i class="bi bi-folder-fill"></i> ${escapeHtml(grubKey)}</td></tr>`;
           const sortedKelompokKeys = Object.keys(groupedData[grubKey]).sort();
           sortedKelompokKeys.forEach(kelompokKey => {
               const sortedKegiatanKeys = Object.keys(groupedData[grubKey][kelompokKey]).sort();
-              html += `<tr class="group-header-kelompok"><td colspan="8" class="fw-bold ps-4"><i class="bi bi-tags-fill"></i> Kelompok: ${escapeHtml(kelompokKey)}</td></tr>`;
+              html += `<tr class="group-header-kelompok"><td colspan="10" class="fw-bold ps-4"><i class="bi bi-tags-fill"></i> Kelompok: ${escapeHtml(kelompokKey)}</td></tr>`;
               sortedKegiatanKeys.forEach(kegiatanKey => {
-                  html += `<tr class="group-header-kegiatan"><td colspan="8" class="fw-bold ps-5"><i class="bi bi-collection-fill text-secondary"></i> Kegiatan: ${escapeHtml(kegiatanKey)}</td></tr>`;
+                  html += `<tr class="group-header-kegiatan"><td colspan="10" class="fw-bold ps-5"><i class="bi bi-collection-fill text-secondary"></i> Kegiatan: ${escapeHtml(kegiatanKey)}</td></tr>`;
                   groupedData[grubKey][kelompokKey][kegiatanKey].forEach(r => {
                       const ajuanIdString = String(r.ID_Ajuan);
                       const dataDukungLink = r.Data_Dukung ? `<a href="${escapeHtml(r.Data_Dukung)}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Lihat"><i class="bi bi-box-arrow-up-right"></i></a>` : `<span class="text-muted small fst-italic">N/A</span>`;
@@ -4304,12 +4472,19 @@ const selisih = totalBaru - totalLama;
                       const prodiInfoHtml = STATE.role === 'direktorat' ? `<div class="small text-muted">Oleh: <strong>${escapeHtml(prodiNama)}</strong></div>` : '';
                       const idAjuanAsal = r.ID_Ajuan_Asal ? `<span class="badge bg-light text-dark fw-normal fst-italic">Asal: ${String(r.ID_Ajuan_Asal).substring(0, 6)}..</span>` : '';
                       
-                      const isBlocked = !!r.Is_Blocked;
-                      const statusKey = isBlocked ? "Blocked" : r.Status;
-                      const rowClass = isBlocked ? 'blocked-row' : ''; 
-                      const statusBadgeText = isBlocked && r.Status === 'Diterima' ? `Diterima (BLOKIR)` : (isBlocked ? `${r.Status} (BLOKIR)` : r.Status);
+                      const totalBruto = Number(r.Total) || 0;
+                      const nominalBlokir = Number(r.Nominal_Blokir) || 0;
+                      const budgetBersih = totalBruto - nominalBlokir;
 
-                      html += `<tr class="prodi-indicator ${rowClass}" style="border-left-color: ${prodiColor};"><td><input type="checkbox" class="ajuan-checkbox-${sanitizedTipe}" data-id="${ajuanIdString}"></td><td><div class="d-flex justify-content-between align-items-start"><strong class="me-2">${escapeHtml(r.Nama_Ajuan)}</strong><span class="badge bg-secondary-subtle text-secondary-emphasis fw-normal text-nowrap">${ajuanIdString.substring(0, 6)}..</span></div>${prodiInfoHtml}<div class="mt-1"><span class="badge bg-info-subtle text-info-emphasis fw-normal">${escapeHtml(r.Status_Revisi || 'Ajuan Baru')}</span> ${idAjuanAsal}</div></td><td>${formatBreakdown(r)}</td><td class="text-end text-nowrap"><strong>Rp ${Number(r.Total).toLocaleString('id-ID')}</strong></td><td class="text-center action-buttons">${dataDukungLink}</td><td><span class="badge rounded-pill status-badge ${statusClassMap[statusKey] || statusClassMap[r.Status] || 'bg-secondary'}">${statusBadgeText}</span></td><td><small class="text-muted fst-italic">${escapeHtml(r.Catatan_Reviewer || '')}</small></td><td class="text-end action-buttons">${renderActionsForRow(r, tipe)}</td></tr>`;
+                      let statusBadgeText = r.Status;
+                      let rowClass = '';
+                      
+                      if (r.Status === 'Diterima' && nominalBlokir > 0) {
+                          statusBadgeText = nominalBlokir >= totalBruto ? 'Diterima (BLOKIR PENUH)' : 'Diterima (BLOKIR SEBAGIAN)';
+                          rowClass = nominalBlokir >= totalBruto ? 'blocked-full-row' : 'blocked-partial-row';
+                      }
+
+                      html += `<tr class="prodi-indicator ${rowClass}" style="border-left-color: ${prodiColor};"><td><input type="checkbox" class="ajuan-checkbox-${sanitizedTipe}" data-id="${ajuanIdString}"></td><td><div class="d-flex justify-content-between align-items-start"><strong class="me-2">${escapeHtml(r.Nama_Ajuan)}</strong><span class="badge bg-secondary-subtle text-secondary-emphasis fw-normal text-nowrap">${ajuanIdString.substring(0, 6)}..</span></div>${prodiInfoHtml}<div class="mt-1"><span class="badge bg-info-subtle text-info-emphasis fw-normal">${escapeHtml(r.Status_Revisi || 'Ajuan Baru')}</span> ${idAjuanAsal}</div></td><td>${formatBreakdown(r)}</td><td class="text-end text-nowrap"><strong>Rp ${totalBruto.toLocaleString('id-ID')}</strong></td><td class="text-end text-danger">${nominalBlokir.toLocaleString('id-ID')}</td><td class="text-end text-success fw-bold">${budgetBersih.toLocaleString('id-ID')}</td><td class="text-center action-buttons">${dataDukungLink}</td><td><span class="badge rounded-pill status-badge ${statusClassMap[r.Status] || 'bg-secondary'}">${statusBadgeText}</span></td><td><small class="text-muted fst-italic">${escapeHtml(r.Catatan_Reviewer || '')}</small></td><td class="text-end action-buttons">${renderActionsForRow(r, tipe)}</td></tr>`;
                   });
               });
           });
@@ -4401,6 +4576,21 @@ const selisih = totalBaru - totalLama;
         if (fetchError || !dataBefore) throw new Error("Item ajuan tidak ditemukan.");
         prodiId = dataBefore.ID_Prodi;
 
+        // --- CHECK BLOCK NOMINAL (Jika total berubah, nominal blokir harus direset atau divalidasi ulang) ---
+        const oldTotal = Number(dataBefore.Total) || 0;
+        let nominalBlokir = Number(dataBefore.Nominal_Blokir) || 0;
+        let isBlocked = !!dataBefore.Is_Blocked;
+
+        if (newTotal !== oldTotal) {
+            // Jika total berubah, pastikan nominal blokir tidak melebihi total baru
+            if (nominalBlokir > newTotal) {
+                nominalBlokir = newTotal;
+                showToast(`Nominal Blokir disesuaikan menjadi Rp ${nominalBlokir.toLocaleString('id-ID')} karena Total berubah.`, 'warning');
+            }
+            // Update Is_Blocked flag based on new nominal
+            isBlocked = nominalBlokir > 0;
+        }
+
         // Prepare data to update
         const dataAfter = { 
             Grub_Belanja_Utama: getSafeValue('edit-selectGrub'),
@@ -4418,6 +4608,10 @@ const selisih = totalBaru - totalLama;
             Keterangan: getSafeValue('edit-keterangan'),
             Status_Revisi: getSafeValue('edit-selectRevisi'),
             Data_Dukung: getSafeValue('edit-dataDukung'),
+            
+            // Kolom Blokir
+            Nominal_Blokir: nominalBlokir,
+            Is_Blocked: isBlocked,
             
             // NEW: Set calculation breakdown to null/empty as it is not used in this mode
             calcA1: null, calcS1: null,
@@ -4563,10 +4757,11 @@ const selisih = totalBaru - totalLama;
     
     const targetTableName = getAjuanTableName(tipe); // <-- REF ACT: Tentukan tabel tujuan
     
+    // Status update payload
     const data = { Status: newStatus, Catatan_Reviewer: catatan };
-    if (newStatus === 'Diterima') {
-         data.Is_Blocked = false; // Ensure accepted items are not blocked by default
-    }
+    
+    // Kritis: Jika Diterima, pastikan Nominal_Blokir tidak direset di sini
+    // Jika Ditolak/Revisi/Menunggu Review, kita tidak perlu memodifikasi Nominal_Blokir/Is_Blocked
     
     showLoader(true);
     const ajuanProdiMap = new Map(); 
@@ -4588,7 +4783,6 @@ const selisih = totalBaru - totalLama;
             
             if (STATE.role === 'direktorat') {
                 // Fetch required data for notification and recalculation
-                // NOTE: This fetch can fail due to RLS 406 error if not configured correctly
                 const { data: ajuanData, error: fetchError } = await sb.from(targetTableName).select('ID_Prodi, Nama_Ajuan').eq('ID_Ajuan', id).maybeSingle(); // <-- REF ACT
                 if (fetchError) console.warn("Gagal fetching ajuan data for notification/recalc.", fetchError);
                 
@@ -4775,37 +4969,82 @@ const selisih = totalBaru - totalLama;
         const targetTableName = getAjuanTableName(tipe); // <-- REF ACT
         
         if (ids.length === 0) return;
-        if (confirm(`Yakin ingin memBLOKIR ${ids.length} ajuan terpilih di tabel ${targetTableName}? Ajuan yang diblokir TIDAK akan masuk RPD/Realisasi.`)) {
-            showLoader(true);
-            try {
-                // Fetch affected prodi IDs before block operation
-                const { data: ajuanData, error: fetchError } = await sb.from(targetTableName).select('ID_Prodi').in('ID_Ajuan', ids); // <-- REF ACT
-                if (fetchError) console.warn("Failed to fetch prodi IDs for block recalculation.");
-                const prodiIdsToRecalculate = [...new Set(ajuanData.map(d => d.ID_Prodi))];
+        
+        // Cek apakah semua ajuan berstatus 'Diterima' sebelum mencoba blokir
+        const ajuanData = tipe === 'Awal' ? STATE.currentAjuanDataAwal : STATE.currentAjuanDataPerubahan;
+        const allAccepted = ids.every(id => ajuanData.find(a => String(a.ID_Ajuan) === id)?.Status === 'Diterima');
 
-                // Bulk Update Block status
-                const { error: blockError } = await sb.from(targetTableName) // <-- REF ACT
-                    .update({ Is_Blocked: true })
-                    .in('ID_Ajuan', ids);
+        if (!allAccepted) {
+            showToast("Aksi blokir massal hanya dapat dilakukan pada ajuan yang berstatus 'Diterima'.", 'warning');
+            return;
+        }
 
-                if (blockError) throw blockError;
+        const blockAmountStr = prompt(`BLOKIR MASSAL: Masukkan nominal (Rp) yang ingin diblokir untuk setiap ajuan yang terpilih (${ids.length} item).\n\nNominal ini akan diterapkan pada SEMUA ajuan yang dipilih. Masukkan 0 untuk membuka blokir.`);
+        
+        if (blockAmountStr === null) return;
+        let blockAmount = parseFloat(String(blockAmountStr).replace(/\./g, '').replace(/,/g, '')) || 0;
+
+        if (isNaN(blockAmount) || blockAmount < 0) {
+             showToast("Input nominal blokir tidak valid.", "danger");
+             return;
+        }
+
+        showLoader(true);
+        try {
+            // Fetch affected prodi IDs before block operation
+            const { data: prodiFetchData, error: fetchError } = await sb.from(targetTableName).select('ID_Prodi, Total').in('ID_Ajuan', ids); 
+            if (fetchError) console.warn("Failed to fetch prodi IDs for block recalculation.");
+            
+            const prodiIdsToRecalculate = new Set();
+            const updates = [];
+
+            prodiFetchData.forEach(d => {
+                const id = String(d.ID_Ajuan);
+                prodiIdsToRecalculate.add(d.ID_Prodi);
                 
-                await logActivity('Bulk Block Ajuan', `Memblokir ${ids.length} ajuan di tabel ${targetTableName}.`);
-                showToast(`${ids.length} ajuan berhasil diblokir.`);
-
-                // --- Trigger Recalculation ---
-                for (const prodiId of prodiIdsToRecalculate) {
-                    await recalculateProdiSummary(prodiId);
+                let finalBlockAmount = blockAmount;
+                // Pastikan nominal blokir tidak melebihi total ajuan per item
+                if (finalBlockAmount > Number(d.Total)) {
+                     finalBlockAmount = Number(d.Total);
                 }
-                // --- End Trigger ---
 
-                // **FIX: Clear selection state and hide bulk action bar**
-                if (tipe === 'Awal') STATE.selectedAjuanIdsAwal.clear(); else STATE.selectedAjuanIdsPerubahan.clear();
-                updateBulkActionBar(tipe); 
+                updates.push({
+                    ID_Ajuan: id,
+                    Is_Blocked: finalBlockAmount > 0,
+                    Nominal_Blokir: finalBlockAmount
+                });
+            });
 
-                if (tipe === 'Awal') refreshAjuanTableAwal(true); else refreshAjuanTablePerubahan(true);
-                loadDashboardData(true);
-            } catch (error) { showToast(`Gagal memblokir: ${error.message}`, 'danger'); } finally { showLoader(false); }
+            // 1. Lakukan Bulk Update (Menggunakan RPC/function jika Supabase tidak mendukung bulk UPDATE)
+            // Karena Supabase JS Client tidak memiliki bulk update, kita harus loop atau menggunakan RPC.
+            // Untuk performa, kita akan menggunakan array promises (meski lambat untuk ribuan data, ini lebih aman).
+            
+            const updatePromises = updates.map(u => 
+                sb.from(targetTableName).update({ Nominal_Blokir: u.Nominal_Blokir, Is_Blocked: u.Is_Blocked }).eq('ID_Ajuan', u.ID_Ajuan)
+            );
+            
+            await Promise.all(updatePromises);
+
+            const msg = blockAmount > 0 ? `${ids.length} ajuan berhasil diblokir sebesar Rp ${blockAmount.toLocaleString('id-ID')} (massal).` : `${ids.length} blokir ajuan berhasil dibuka (massal).`;
+            await logActivity('Bulk Set Block Nominal', msg);
+            showToast(msg, "success");
+
+            // --- Trigger Recalculation ---
+            for (const prodiId of prodiIdsToRecalculate) {
+                await recalculateProdiSummary(prodiId);
+            }
+            // --- End Trigger ---
+
+            // **FIX: Clear selection state and hide bulk action bar**
+            if (tipe === 'Awal') STATE.selectedAjuanIdsAwal.clear(); else STATE.selectedAjuanIdsPerubahan.clear();
+            updateBulkActionBar(tipe); 
+
+            if (tipe === 'Awal') refreshAjuanTableAwal(true); else refreshAjuanTablePerubahan(true);
+            loadDashboardData(true);
+        } catch (error) { 
+            showToast(`Gagal memblokir massal: ${error.message}`, 'danger'); 
+        } finally { 
+            showLoader(false); 
         }
     });
   });
@@ -4830,7 +5069,7 @@ const selisih = totalBaru - totalLama;
 
     try {
         let query = sb.from(targetTableName) // <-- REF ACT
-            .select(`ID_Ajuan, ID_Prodi, Nama_Ajuan, Judul_Kegiatan, Total, Is_Blocked, ${RPD_SELECT_COLUMNS}`) // Ensure all required fields are selected
+            .select(`ID_Ajuan, ID_Prodi, Nama_Ajuan, Judul_Kegiatan, Total, Nominal_Blokir, ${RPD_SELECT_COLUMNS}`) // <<< ADD Nominal_Blokir
             .eq('Status', 'Diterima')
             .eq('Tipe_Ajuan', tipe);
         
@@ -4844,10 +5083,15 @@ const selisih = totalBaru - totalLama;
         const { data: rawData, error } = await query;
         if (error) throw error;
         
-        let data = rawData.map(d => ({ ID_Ajuan: String(d.ID_Ajuan || d.id), ...d })); 
+        let data = rawData.map(d => ({ 
+            ID_Ajuan: String(d.ID_Ajuan || d.id), 
+            Total: Number(d.Total) || 0,
+            Nominal_Blokir: Number(d.Nominal_Blokir) || 0, // Ensure Nominal_Blokir is included
+            ...d 
+        })); 
         
-        // Filter out blocked items locally
-        data = data.filter(d => !d.Is_Blocked);
+        // Filter: Hanya tampilkan ajuan yang memiliki BUDGET BERSIH > 0
+        data = data.filter(d => (d.Total - d.Nominal_Blokir) > 0);
 
         const tipeSuffix = isPerubahan ? 'Perubahan' : 'Awal';
         if (baseName === 'RPD') {
@@ -4868,30 +5112,36 @@ const selisih = totalBaru - totalLama;
   function renderRPDTable(data, tipe) { 
     const container = document.getElementById(`tableRPD${tipe}`); 
     if (!container) return;
-    if (data.length === 0) { container.innerHTML = '<div class="text-center text-muted p-5">Tidak ada ajuan diterima dan tidak diblokir.</div>'; return; } 
+    if (data.length === 0) { container.innerHTML = '<div class="text-center text-muted p-5">Tidak ada ajuan diterima dan memiliki Budget Bersih > Rp 0.</div>'; return; } 
     
     const isReadOnlyRole = (STATE.role === 'direktorat' || STATE.role === 'pimpinan');
-const readOnlyAttr = isReadOnlyRole ? 'readonly' : ''; 
-const disabledBtnClass = isReadOnlyRole ? 'disabled' : ''; 
-const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; // Sembunyikan tombol simpan sepenuhnya untuk pimpinan 
+    const readOnlyAttr = isReadOnlyRole ? 'readonly' : ''; 
+    const disabledBtnClass = isReadOnlyRole ? 'disabled' : ''; 
+    const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; 
+    // FIX: Define the missing variable
+    const isDirektorat = (STATE.role === 'direktorat' || STATE.role === 'pimpinan');
     
     // ADJUSTED HEADER MIN-WIDTHS FOR BETTER SCALING
-    let tableHeader = `<tr class="table-light"><th rowspan="2" class="align-middle">ID</th>${isDirektorat ? '<th rowspan="2" class="align-middle">Unit</th>' : ''}<th rowspan="2" class="align-middle" style="min-width: 200px;">Rincian</th><th rowspan="2" class="align-middle text-end" style="min-width: 100px;">Total Diterima</th><th colspan="12" class="text-center">Rencana Penarikan Dana per Bulan (Rp)</th><th rowspan="2" class="align-middle text-end" style="min-width: 100px;">Total RPD</th><th rowspan="2" class="align-middle text-end" style="min-width: 100px;">Sisa</th><th rowspan="2" class="align-middle text-center action-buttons" style="min-width: 70px;">Aksi</th></th></tr><tr class="table-light">${RPD_MONTHS.map(m => `<th class="text-center" style="min-width: 75px;">${m}</th>`).join('')}</tr>`; 
+    let tableHeader = `<tr class="table-light"><th rowspan="2" class="align-middle">ID</th>${isDirektorat ? '<th rowspan="2" class="align-middle">Unit</th>' : ''}<th rowspan="2" class="align-middle" style="min-width: 200px;">Rincian</th><th rowspan="2" class="align-middle text-end" style="min-width: 100px;">Budget Bersih</th><th colspan="12" class="text-center">Rencana Penarikan Dana per Bulan (Rp)</th><th rowspan="2" class="align-middle text-end" style="min-width: 100px;">Total RPD</th><th rowspan="2" class="align-middle text-end" style="min-width: 100px;">Sisa</th><th rowspan="2" class="align-middle text-center action-buttons" style="min-width: 70px;">Aksi</th></th></tr><tr class="table-light">${RPD_MONTHS.map(m => `<th class="text-center" style="min-width: 75px;">${m}</th>`).join('')}</tr>`; 
     
     const tableRows = data.map(r => { 
         // PERBAIKAN: Memastikan ajuanId adalah string sebelum menggunakan substring
         const ajuanId = String(r.ID_Ajuan); 
         let totalAllocated = 0; 
         
+        // Calculate Budget Bersih
+        const totalAjuan = Number(r.Total) || 0;
+        const nominalBlokir = Number(r.Nominal_Blokir) || 0;
+        const budgetBersih = totalAjuan - nominalBlokir; // <<< USE BUDGET BERSIH
+        
         const rpdInputs = RPD_MONTHS.map(month => { 
             // Correctly access snake_case column names
             const value = Number(r[getMonthlyKey('RPD', month)] || 0); 
             totalAllocated += value; 
-            return `<td><input type="number" class="form-control form-control-sm rpd-input" data-ajuan-id="${ajuanId}" value="${value}" oninput="window.updateRpdRowSummary('${ajuanId}', '${tipe}')" min="0" ${readOnlyAttr}></td>`; 
+            return `<td><input type="number" class="form-control form-control-sm rpd-input" data-ajuan-id="${ajuanId}" value="${value}" oninput="window.updateRpdRowSummary('${ajuanId}', '${tipe}', ${budgetBersih})" min="0" ${readOnlyAttr}></td>`; 
         }).join(''); 
         
-        const totalAjuan = Number(r.Total) || 0; 
-        const sisa = totalAjuan - totalAllocated; 
+        const sisa = budgetBersih - totalAllocated; 
         const sisaClass = sisa < 0 ? 'text-danger fw-bold' : ''; 
         
         const prodiCell = isDirektorat ? `<td>${escapeHtml(r.ID_Prodi)}</td>` : '';
@@ -4899,21 +5149,45 @@ const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; //
         // Determine the export ID based on the rendered type
         const exportTableId = `table-export-RPD${tipe}`;
         
-        return `<tr id="rpd-row-${tipe}-${ajuanId}"><td><span class="badge bg-secondary-subtle text-secondary-emphasis fw-normal">${ajuanId.substring(0,6)}..</span></td>${prodiCell}<td><strong>${escapeHtml(r.Nama_Ajuan)}</strong><div class="small text-muted">${escapeHtml(r.Judul_Kegiatan)}</div></td><td class="text-end fw-bold" data-total="${totalAjuan}">${totalAjuan.toLocaleString('id-ID')}</td>${rpdInputs}<td class="text-end fw-bold rpd-total-allocated">${totalAllocated.toLocaleString('id-ID')}</td><td class="text-end fw-bold rpd-sisa ${sisaClass}">${sisa.toLocaleString('id-ID')}</td><td class="text-center action-buttons"><button class="btn btn-sm btn-primary ${disabledBtnClass}" onclick="window.saveRPD('${ajuanId}', '${tipe}')" title="Simpan RPD"><i class="bi bi-save"></i></button></td></tr>`; 
+        return `<tr id="rpd-row-${tipe}-${ajuanId}"><td><span class="badge bg-secondary-subtle text-secondary-emphasis fw-normal">${ajuanId.substring(0,6)}..</span></td>${prodiCell}<td><strong>${escapeHtml(r.Nama_Ajuan)}</strong><div class="small text-muted">${escapeHtml(r.Judul_Kegiatan)}</div></td><td class="text-end fw-bold" data-total="${budgetBersih}">${budgetBersih.toLocaleString('id-ID')}</td>${rpdInputs}<td class="text-end fw-bold rpd-total-allocated">${totalAllocated.toLocaleString('id-ID')}</td><td class="text-end fw-bold rpd-sisa ${sisaClass}">${sisa.toLocaleString('id-ID')}</td><td class="text-center action-buttons"><button class="btn btn-sm btn-primary ${disabledBtnClass}" onclick="window.saveRPD('${ajuanId}', '${tipe}', ${budgetBersih})" title="Simpan RPD"><i class="bi bi-save"></i></button></td></tr>`; 
     }).join(''); 
     
     container.innerHTML = `<table class="table table-bordered table-sm small" id="table-export-RPD${tipe}"><thead>${tableHeader}</thead><tbody>${tableRows}</tbody></table>`; 
   }
   
-  window.updateRpdRowSummary = (ajuanId, tipe) => { const row = document.getElementById(`rpd-row-${tipe}-${ajuanId}`); if (!row) return false; const totalValue = parseFloat(row.querySelector('[data-total]').dataset.total); let currentSum = 0; row.querySelectorAll('.rpd-input').forEach(input => { currentSum += Number(input.value) || 0; }); const sisa = totalValue - currentSum; row.querySelector('.rpd-total-allocated').textContent = currentSum.toLocaleString('id-ID'); row.querySelector('.rpd-sisa').textContent = sisa.toLocaleString('id-ID'); if (sisa < 0) { row.querySelector('.rpd-sisa').classList.add('text-danger'); return false; } else { row.querySelector('.rpd-sisa').classList.remove('text-danger'); return true; } }
+  // MODIFIED: updateRpdRowSummary needs budgetBersih passed in
+  window.updateRpdRowSummary = (ajuanId, tipe, totalBudget) => { 
+    const row = document.getElementById(`rpd-row-${tipe}-${ajuanId}`); 
+    if (!row) return false; 
+    
+    let currentSum = 0; 
+    row.querySelectorAll('.rpd-input').forEach(input => { 
+        currentSum += Number(input.value) || 0; 
+    }); 
+    
+    const sisa = totalBudget - currentSum; // Use totalBudget (Budget Bersih)
+    
+    row.querySelector('.rpd-total-allocated').textContent = currentSum.toLocaleString('id-ID'); 
+    row.querySelector('.rpd-sisa').textContent = sisa.toLocaleString('id-ID'); 
+    
+    if (sisa < 0) { 
+        row.querySelector('.rpd-sisa').classList.add('text-danger'); 
+        return false; 
+    } else { 
+        row.querySelector('.rpd-sisa').classList.remove('text-danger'); 
+        return true; 
+    } 
+  }
   
   // --- MIGRATED TO SUPABASE: Save RPD (MODIFIED) ---
-  window.saveRPD = async (id, tipe) => {
+  // MODIFIED: saveRPD needs budgetBersih passed in
+  window.saveRPD = async (id, tipe, totalBudget) => {
     const ajuanId = String(id);
     const targetTableName = getAjuanTableName(tipe); // <-- REF ACT
     
-    if (!window.updateRpdRowSummary(ajuanId, tipe)) {
-        showToast('Gagal. Total alokasi RPD melebihi total diterima.', 'danger');
+    // Validate based on the Budget Bersih passed from the row
+    if (!window.updateRpdRowSummary(ajuanId, tipe, totalBudget)) {
+        showToast('Gagal. Total alokasi RPD melebihi Budget Bersih (Total Diterima - Nominal Blokir).', 'danger');
         return;
     }
     showLoader(true);
@@ -4967,11 +5241,13 @@ const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; //
    function renderRealisasiTable(data, tipe) { 
     const container = document.getElementById(`tableRealisasi${tipe}`); 
     if (!container) return;
-    if (data.length === 0) { container.innerHTML = '<div class="text-center text-muted p-5">Tidak ada ajuan diterima dan tidak diblokir.</div>'; return; } 
+    if (data.length === 0) { container.innerHTML = '<div class="text-center text-muted p-5">Tidak ada ajuan diterima dan memiliki Budget Bersih > Rp 0.</div>'; return; } 
     const isReadOnlyRole = (STATE.role === 'direktorat' || STATE.role === 'pimpinan');
-const readOnlyAttr = isReadOnlyRole ? 'readonly' : ''; 
-const disabledBtnClass = isReadOnlyRole ? 'disabled' : ''; 
-const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; // Sembunyikan tombol simpan sepenuhnya untuk pimpinan
+    const readOnlyAttr = isReadOnlyRole ? 'readonly' : ''; 
+    const disabledBtnClass = isReadOnlyRole ? 'disabled' : ''; 
+    const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : '';
+    // FIX: Define the missing variable
+    const isDirektorat = (STATE.role === 'direktorat' || STATE.role === 'pimpinan');
     // ADJUSTED HEADER MIN-WIDTHS FOR BETTER SCALING
     let tableHeader = `<tr class="table-light"><th rowspan="2" class="align-middle">ID</th>${isDirektorat ? '<th rowspan="2" class="align-middle">Unit</th>' : ''}<th rowspan="2" class="align-middle" style="min-width: 200px;">Rincian</th><th rowspan="2" class="align-middle text-end" style="min-width: 100px;">Total RPD</th><th colspan="12" class="text-center">Realisasi Penarikan Dana per Bulan (Rp)</th><th rowspan="2" class="align-middle text-end" style="min-width: 100px;">Total Realisasi</th><th rowspan="2" class="align-middle text-center action-buttons" style="min-width: 70px;">Aksi</th></tr><tr class="table-light">${RPD_MONTHS.map(m => `<th class="text-center" style="min-width: 75px;">${m}</th>`).join('')}</tr>`; 
     
@@ -4988,7 +5264,7 @@ const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; //
 
             const value = Number(r[realisasiKey] || 0); 
             totalRealisasi += value; 
-            totalRPD += Number(r[rpdKey] || 0); 
+            totalRPD += Number(r[rpdKey] || 0); // Total RPD Commitment
 
             return `<td><input type="number" class="form-control form-control-sm realisasi-input" value="${value}" oninput="window.updateRealisasiRowSummary('${ajuanId}', '${tipe}')" min="0" ${readOnlyAttr}></td>`; 
         }).join(''); 
@@ -5035,18 +5311,29 @@ const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; //
     let prodiId = null;
 
     try {
-        // 1. Fetch Prodi ID
-        const { data: ajuan, error: fetchError } = await sb.from(targetTableName).select('ID_Prodi').eq('ID_Ajuan', ajuanId).maybeSingle(); // <-- REF ACT
+        // 1. Fetch Prodi ID and current RPD (to check limit)
+        const selectCols = `ID_Prodi, ${RPD_MONTHS.map(m => getMonthlyKey('RPD', m)).join(',')}`;
+        const { data: ajuan, error: fetchError } = await sb.from(targetTableName).select(selectCols).eq('ID_Ajuan', ajuanId).maybeSingle(); // <-- REF ACT
         if (fetchError || !ajuan) throw new Error("Ajuan tidak ditemukan.");
         prodiId = ajuan.ID_Prodi;
+        
+        let totalRPDCommitment = 0;
+        RPD_MONTHS.forEach(m => {
+            totalRPDCommitment += Number(ajuan[getMonthlyKey('RPD', m)]) || 0;
+        });
 
         if (row) {
             row.querySelectorAll('.realisasi-input').forEach((input, index) => {
                 const value = Number(input.value) || 0;
-                // Use snake_case column names for Supabase update
-                realisasiData[getMonthlyKey('Realisasi', RPD_MONTHS[index])] = value;
+                // Check if total realisasi exceeds total RPD commitment for the item
                 totalRealisasi += value;
+                realisasiData[getMonthlyKey('Realisasi', RPD_MONTHS[index])] = value;
             });
+        }
+        
+        // Validation: Realisasi total should not exceed RPD total commitment
+        if (totalRealisasi > totalRPDCommitment) {
+            throw new Error(`Gagal. Total Realisasi (Rp ${totalRealisasi.toLocaleString('id-ID')}) melebihi Total RPD (Rp ${totalRPDCommitment.toLocaleString('id-ID')}).`);
         }
         
         // 2. Supabase Update
@@ -5227,18 +5514,23 @@ const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; //
 
         // 2. QUERY BATCH (Satu kali request untuk semua prodi)
         const { data: allAjuanData, error } = await sb.from(targetTableName)
-            .select('*')
+            .select('*, Nominal_Blokir') // <<< ADD Nominal_Blokir
             .eq('Tipe_Ajuan', tipeAjuan)
             .in('ID_Prodi', targetProdiIds) // Menggunakan IN filter
             .eq('Status', 'Diterima');
         
         if (error) throw error;
 
-        // Filter blocked items di memory
-        const cleanData = allAjuanData.filter(d => !d.Is_Blocked);
+        // Filter: Hanya yang memiliki Budget Bersih > 0
+        const cleanData = allAjuanData.map(d => ({
+            ...d,
+            Total: Number(d.Total) || 0,
+            Nominal_Blokir: Number(d.Nominal_Blokir) || 0,
+            Budget_Bersih: (Number(d.Total) || 0) - (Number(d.Nominal_Blokir) || 0)
+        })).filter(d => d.Budget_Bersih > 0);
 
         if (cleanData.length === 0) {
-            throw new Error(`Tidak ada data ajuan "Diterima" (Clean) untuk unit terpilih.`);
+            throw new Error(`Tidak ada data ajuan "Diterima" (Bersih) untuk unit terpilih.`);
         }
 
         // 3. Grouping Data by Prodi di Memory (Javascript)
@@ -5272,24 +5564,23 @@ const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; //
             Object.keys(groupedData).sort().forEach(grubKey => {
                 tableRowsHtml += `<tr><td colspan="5" style="background-color: #f2f2f2;"><strong>${escapeHtml(grubKey)}</strong></td></tr>`;
                 groupedData[grubKey].forEach(r => {
-                    grandTotal += Number(r.Total) || 0;
-                    tableRowsHtml += `<tr><td style="text-align: center;">${no++}</td><td>${escapeHtml(r.Nama_Ajuan)}</td><td style="text-align: center;">${Number(r.Jumlah).toLocaleString('id-ID', { maximumFractionDigits: 2 })} ${escapeHtml(r.Satuan)}</td><td style="text-align: right;">${Number(r.Harga_Satuan).toLocaleString('id-ID')}</td><td style="text-align: right;">${Number(r.Total).toLocaleString('id-ID')}</td></tr>`;
+                    // KRITIS: Gunakan Budget_Bersih
+                    const budgetBersih = r.Budget_Bersih; 
+                    grandTotal += budgetBersih;
+                    tableRowsHtml += `<tr><td style="text-align: center;">${no++}</td><td>${escapeHtml(r.Nama_Ajuan)}</td><td style="text-align: center;">${Number(r.Jumlah).toLocaleString('id-ID', { maximumFractionDigits: 2 })} ${escapeHtml(r.Satuan)}</td><td style="text-align: right;">${Number(r.Harga_Satuan).toLocaleString('id-ID')}</td><td style="text-align: right;">${budgetBersih.toLocaleString('id-ID')}</td></tr>`;
                 });
             });
 
             // --- Template Surat (HTML String) ---
-            // (Gunakan template yang sama seperti di kode asli Anda, panggil variabel tableRowsHtml & grandTotal)
-            // ... Copy paste template HTML BA di sini ...
             
-            // Contoh ringkas:
             const today = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
             const ttdKiri = prodiData.beritaAcaraSettings?.TTD_Nama || STATE.beritaAcaraSettings.TTD_Kiri_Nama;
             
             allProdisHtml += `
                 <div class="ba-page-content">
-                    <div class="ba-judul"><h5>BERITA ACARA - ${escapeHtml(prodiData.Nama_Prodi)}</h5></div>
+                    <div class="ba-judul"><h5>BERITA ACARA - ${escapeHtml(prodiData.Nama_Prodi)} (Budget Bersih)</h5></div>
                     <table class="ba-table">
-                        <thead><tr><th>No</th><th>Uraian</th><th>Vol</th><th>Harga</th><th>Jumlah</th></tr></thead>
+                        <thead><tr><th>No</th><th>Uraian</th><th>Vol</th><th>Harga</th><th>Jumlah (Bersih)</th></tr></thead>
                         <tbody>${tableRowsHtml}<tr><td colspan="4" class="text-end fw-bold">TOTAL</td><td class="text-end fw-bold">${grandTotal.toLocaleString('id-ID')}</td></tr></tbody>
                     </table>
                     <div class="ba-signatures"><p>Kupang, ${today}</p><p><u>${escapeHtml(ttdKiri)}</u></p></div>
@@ -5337,8 +5628,8 @@ const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; //
             // 1. Fetch current accepted data (from the revision table)
             const currentTableName = getAjuanTableName(tipeAjuan); // e.g., 'ajuanrev1'
             
-            const { data: currentRawData, error: currentError } = await sb.from(currentTableName) // <-- REF ACT
-                .select('*, ID_Ajuan_Asal') // Ensure ID_Ajuan_Asal is included
+            const { data: currentRawData, error: currentError } = await sb.from(currentTableName) 
+                .select('*, ID_Ajuan_Asal, Nominal_Blokir') // <<< ADD Nominal_Blokir
                 .eq('Tipe_Ajuan', tipeAjuan)
                 .eq('ID_Prodi', prodiId)
                 .eq('Status', 'Diterima');
@@ -5346,14 +5637,17 @@ const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; //
             if (currentError) throw currentError;
 
             let currentData = currentRawData.map(d => {
-                d.ID_Ajuan = String(d.ID_Ajuan || d.id); // Ensure string ID
+                d.ID_Ajuan = String(d.ID_Ajuan || d.id); 
                 if (d.ID_Ajuan_Asal) d.ID_Ajuan_Asal = String(d.ID_Ajuan_Asal);
+                d.Total = Number(d.Total) || 0;
+                d.Nominal_Blokir = Number(d.Nominal_Blokir) || 0;
+                d.Budget_Bersih = d.Total - d.Nominal_Blokir;
                 return d;
-            }).filter(d => !d.Is_Blocked); 
+            }).filter(d => d.Budget_Bersih >= 0); // Include items blocked fully (Budget Bersih = 0) to track the item, but usually filtered later
 
-            if (currentData.length === 0) {
+            if (currentData.filter(d => d.Budget_Bersih > 0).length === 0) {
                 if (targetProdiList.length === 1) {
-                    throw new Error(`Tidak ada ajuan ${tipeAjuan} berstatus "Diterima" dan tidak diblokir untuk ${prodiId}.`);
+                    throw new Error(`Tidak ada ajuan ${tipeAjuan} berstatus "Diterima" dan memiliki Budget Bersih > Rp 0 untuk ${prodiId}.`);
                 }
                 continue;
             }
@@ -5373,20 +5667,23 @@ const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; //
 
             // 3. Fetch original data (Supabase Query) - from the previous stage's table
             if (asalIds.length > 0) {
-                const { data: originalData, error: originalError } = await sb.from(originalTableName) // <-- REF ACT
-                    .select('*')
+                const { data: originalRawData, error: originalError } = await sb.from(originalTableName) 
+                    .select('*, Nominal_Blokir') // <<< ADD Nominal_Blokir
                     .in('ID_Ajuan', asalIds); 
                 
                 if (originalError) console.warn("Error fetching original data for comparison:", originalError);
 
-                (originalData || []).forEach(doc => {
+                (originalRawData || []).forEach(doc => {
+                    doc.Total = Number(doc.Total) || 0;
+                    doc.Nominal_Blokir = Number(doc.Nominal_Blokir) || 0;
+                    doc.Budget_Bersih = doc.Total - doc.Nominal_Blokir; // Calculate Budget Bersih Lama
                     originalDataMap.set(String(doc.ID_Ajuan || doc.id), doc);
                 });
             }
             
             // --- Data Processing for Comparison Table ---
             let grandTotalBaru = 0;
-            let grandTotalLama = 0;
+            let grandTotalLama = 0; // Menggunakan Budget Bersih Lama
             let totalSelisih = 0;
 
             const tableRows = currentData.map((r, index) => {
@@ -5396,16 +5693,19 @@ const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; //
                 const volLama = Number(original.Jumlah) || 0;
                 const hrgLama = Number(original.Harga_Satuan) || 0;
                 const totalLama = Number(original.Total) || 0;
-
+                const budgetBersihLama = Number(original.Budget_Bersih) || 0; 
+                
                 const namaBaru = escapeHtml(r.Nama_Ajuan);
                 const volBaru = Number(r.Jumlah) || 0;
                 const hrgBaru = Number(r.Harga_Satuan) || 0;
                 const totalBaru = Number(r.Total) || 0;
+                const budgetBersihBaru = r.Budget_Bersih; 
 
-                const selisih = totalBaru - totalLama;
+                const selisih = budgetBersihBaru - budgetBersihLama;
                 
-                grandTotalBaru += totalBaru;
-                grandTotalLama += totalLama;
+                // Hanya hitung grand total jika budget bersih > 0
+                if (budgetBersihBaru > 0) grandTotalBaru += budgetBersihBaru;
+                if (budgetBersihLama > 0) grandTotalLama += budgetBersihLama;
                 totalSelisih += selisih;
 
                 const selisihColor = selisih === 0 ? 'text-muted' : (selisih > 0 ? 'text-success' : 'text-danger');
@@ -5417,14 +5717,14 @@ const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; //
                         <td class="bg-light-subtle">${namaLama}</td>
                         <td style="text-align: center;">${volLama.toLocaleString('id-ID', { maximumFractionDigits: 2 })} ${escapeHtml(original.Satuan || '')}</td>
                         <td style="text-align: right;">${hrgLama.toLocaleString('id-ID')}</td>
-                        <td style="text-align: right;">${totalLama.toLocaleString('id-ID')}</td>
+                        <td style="text-align: right;">${budgetBersihLama.toLocaleString('id-ID')}</td>
                         <td rowspan="2" style="text-align: right; vertical-align: middle; font-weight: bold; ${selisihColor === 'text-danger' ? 'color: red;' : selisihColor === 'text-success' ? 'color: green;' : ''}">${selisih > 0 ? '+' : ''}${selisih.toLocaleString('id-ID')}</td>
                     </tr>
                     <tr>
                         <td style="font-weight: bold;">${namaBaru}</td>
                         <td style="text-align: center;">${volBaru.toLocaleString('id-ID', { maximumFractionDigits: 2 })} ${escapeHtml(r.Satuan)}</td>
                         <td style="text-align: right;">${hrgBaru.toLocaleString('id-ID')}</td>
-                        <td style="text-align: right; font-weight: bold;">${totalBaru.toLocaleString('id-ID')}</td>
+                        <td style="text-align: right; font-weight: bold;">${budgetBersihBaru.toLocaleString('id-ID')}</td>
                     </tr>
                 `;
             }).join('');
@@ -5447,11 +5747,11 @@ const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; //
                     <table><tr><td style="width: 100px; text-align: right; border:none; padding-right: 15px;"><img src="https://si-pandai.netlify.app/LOGO%20POLTEKKES%20KEMENKES%20KUPANG.png" alt="Logo"></td><td style="text-align: left; border:none;"><div class="ba-kop-text"><h5>KEMENTERIAN KESEHATAN REPUBLIK INDONESIA</h5><h5>BADAN PENGEMBANGAN DAN PEMBERDAYAAN SUMBER DAYA MANUSIA KESEHATAN</h5><h5 style="font-size: 1.3em;">POLITEKNIK KESEHATAN KEMENKES KUPANG</h5><p style="font-weight: normal; font-size: 0.9em;">Jalan Piet A. Tallo, Liliba - Kupang, Nusa Tenggara Timur</p></div></td></tr></table>
                 </div>
                 <div class="ba-judul">
-                    <h5>BERITA ACARA</h5><h5>REVISI KEGIATAN DAN ANGGARAN TAHAP: ${tipeAjuan.replace('Perubahan', 'Revisi').toUpperCase()}</h5><p>Nomor: .......................................</p>
+                    <h5>BERITA ACARA</h5><h5>REVISI KEGIATAN DAN ANGGARAN TAHAP: ${tipeAjuan.replace('Perubahan', 'Revisi').toUpperCase()} (Budget Bersih)</h5><p>Nomor: .......................................</p>
                 </div>
                 <div class="ba-paragraf">
                     Pada hari ini, tanggal ${tglCetak}, telah dilaksanakan pembahasan dan penetapan perubahan usulan kegiatan dan anggaran untuk <strong>${escapeHtml(prodiData.Nama_Prodi)}</strong> Tahun Anggaran ${tahunAnggaran} (${tipeAjuan.replace('Perubahan', 'Revisi')}).
-                    Berdasarkan hasil pembahasan, total anggaran sebelumnya yang diterima adalah Rp ${grandTotalLama.toLocaleString('id-ID')}. Setelah perubahan, total anggaran yang ditetapkan adalah Rp ${grandTotalBaru.toLocaleString('id-ID')}, dengan selisih <strong class="${selisihTotalColor}">${totalSelisih > 0 ? '+' : ''}${totalSelisih.toLocaleString('id-ID')}</strong>. Rincian perubahannya adalah sebagai berikut:
+                    Berdasarkan hasil pembahasan, total anggaran sebelumnya yang diterima (Bersih) adalah Rp ${grandTotalLama.toLocaleString('id-ID')}. Setelah perubahan, total anggaran yang ditetapkan (Bersih) adalah Rp ${grandTotalBaru.toLocaleString('id-ID')}, dengan selisih <strong class="${selisihTotalColor}">${totalSelisih > 0 ? '+' : ''}${totalSelisih.toLocaleString('id-ID')}</strong>. Rincian perubahannya (berdasarkan Budget Bersih) adalah sebagai berikut:
                 </div>
                 
                 <table class="ba-table ba-comparison-table">
@@ -5461,8 +5761,8 @@ const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; //
                             <th style="width: 47%;">Rincian Ajuan (LAMA / BARU)</th>
                             <th style="width: 10%;">Volume</th>
                             <th style="width: 15%;">Harga Satuan (Rp)</th>
-                            <th style="width: 15%;">Total Biaya (Rp)</th>
-                            <th rowspan="2" style="width: 10%;">Selisih Biaya (Rp)</th>
+                            <th style="width: 15%;">Total Biaya Bersih (Rp)</th>
+                            <th rowspan="2" style="width: 10%;">Selisih Biaya Bersih (Rp)</th>
                         </tr>
                         <tr>
                             <th colspan="4" style="text-align: left; font-style: italic;">(Baris 1: Data Sebelumnya; Baris 2: Data Final)</th>
@@ -5471,12 +5771,12 @@ const actionColumnStyle = (STATE.role === 'pimpinan') ? 'display:none;' : ''; //
                     <tbody>
                         ${tableRows}
                         <tr>
-                            <td colspan="4" style="text-align: right; font-weight: bold;">TOTAL ANGGARAN SEBELUMNYA (LAMA)</td>
+                            <td colspan="4" style="text-align: right; font-weight: bold;">TOTAL ANGGARAN SEBELUMNYA (BERSHIH)</td>
                             <td style="text-align: right; font-weight: bold;">${grandTotalLama.toLocaleString('id-ID')}</td>
                             <td rowspan="2" style="vertical-align: middle; font-weight: bold; ${totalSelisih >= 0 ? 'color: green;' : 'color: red;'}">${totalSelisih > 0 ? '+' : ''}${totalSelisih.toLocaleString('id-ID')}</td>
                         </tr>
                         <tr>
-                            <td colspan="4" style="text-align: right; font-weight: bold;">TOTAL ANGGARAN DITERIMA (BARU)</td>
+                            <td colspan="4" style="text-align: right; font-weight: bold;">TOTAL ANGGARAN DITERIMA (BERSHIH)</td>
                             <td style="text-align: right; font-weight: bold;">${grandTotalBaru.toLocaleString('id-ID')}</td>
                         </tr>
                     </tbody>
@@ -5553,7 +5853,7 @@ async function loadDashboardData(forceRefresh = false) {
         if (forceRefresh || STATE.cachedDashboardData.length === 0) { 
             STATE.allDashboardData = [];
             let query = sb.from(targetTable)
-               .select(`ID_Ajuan, ID_Prodi, Total, Status, Tipe_Ajuan, Timestamp, Is_Blocked, ${RPD_SELECT_COLUMNS}`);
+               .select(`ID_Ajuan, ID_Prodi, Total, Nominal_Blokir, Status, Tipe_Ajuan, Timestamp, Is_Blocked, ${RPD_SELECT_COLUMNS}`); // <<< ADD Nominal_Blokir
 
              // Filter Logic
              if (STATE.role === 'prodi') {
@@ -5574,6 +5874,7 @@ async function loadDashboardData(forceRefresh = false) {
                  const processedData = rawData.map(data => {
                     if (data.Timestamp) data.Timestamp = new Date(data.Timestamp); 
                     data.Is_Blocked = !!data.Is_Blocked; 
+                    data.Nominal_Blokir = Number(data.Nominal_Blokir) || 0; // Ensure number
                     data.ID_Ajuan = String(data.ID_Ajuan || data.id);
                     data.Tipe_Ajuan = targetLabel; 
                     return data;
@@ -5791,7 +6092,7 @@ function renderDashboardSummary(data, containerPrefix = 'dashboard-', chartPrefi
     const activeLabel = isPerubahanOpen ? `Perubahan ${tahapAktif}` : 'Awal';
 
     let totalDiajukanOverall = 0;
-    let totalDiterimaOverall = 0; 
+    let totalDiterimaOverall = 0; // Budget Bersih
     let statusCounts = { 'Menunggu Review': 0, 'Diterima': 0, 'Ditolak': 0, 'Revisi': 0 }; 
     const rpdPerBulan = Array(12).fill(0); 
     const realisasiPerBulan = Array(12).fill(0); 
@@ -5799,14 +6100,15 @@ function renderDashboardSummary(data, containerPrefix = 'dashboard-', chartPrefi
     // Aggregation Logic
     data.forEach(ajuan => { 
         const total = Number(ajuan.Total) || 0;
-        const isBlocked = !!ajuan.Is_Blocked;
+        const nominalBlokir = Number(ajuan.Nominal_Blokir) || 0;
+        const budgetBersih = total - nominalBlokir;
         
         totalDiajukanOverall += total;
 
         if (ajuan.Status) statusCounts[ajuan.Status] = (statusCounts[ajuan.Status] || 0) + 1; 
         
-        if (ajuan.Status === 'Diterima' && !isBlocked) { 
-            totalDiterimaOverall += total;
+        if (ajuan.Status === 'Diterima' && budgetBersih > 0) { 
+            totalDiterimaOverall += budgetBersih; // Use Budget Bersih
             RPD_MONTHS.forEach((month, index) => { 
                 const rpdVal = Number(ajuan[getMonthlyKey('RPD', month)]) || 0;
                 const realVal = Number(ajuan[getMonthlyKey('Realisasi', month)]) || 0;
@@ -5824,7 +6126,7 @@ function renderDashboardSummary(data, containerPrefix = 'dashboard-', chartPrefi
     let paguSebelumDisplay = 0;
     let paguSekarangDisplay = 0;
     
-    const isDirectorateSummaryMode = STATE.role === 'direktorat' && !getSafeValue('filterTahunDashboard') && !getSafeValue('filterTipeDashboard');
+    const isDirectorateSummaryMode = (STATE.role === 'direktorat' || STATE.role === 'pimpinan') && !getSafeValue('filterTahunDashboard') && !getSafeValue('filterTipeDashboard');
 
     if (isDirectorateSummaryMode) {
         // Ambil dari prodi_summary
@@ -5844,17 +6146,16 @@ function renderDashboardSummary(data, containerPrefix = 'dashboard-', chartPrefi
             }
         });
     } else {
-        // Mode Prodi / Filter: Pagu Sekarang = Total Diterima dari tabel aktif
+        // Mode Prodi / Filter: Pagu Sekarang = Total Diterima Bersih dari tabel aktif
         paguSekarangDisplay = totalDiterimaOverall;
         
         // Pagu Sebelum: Logic manual untuk Prodi
         if (STATE.role === 'prodi') {
-             if (isPerubahanOpen) {
-                 // Fallback visual untuk Prodi saat perubahan
-                 paguSebelumDisplay = STATE.currentUserData.Pagu_Anggaran || 0; 
-             } else {
-                 paguSebelumDisplay = STATE.currentUserData.Pagu_Anggaran || 0;
-             }
+             // Untuk Prodi, kita tampilkan ceiling Pagu Awal sebagai pembanding utama
+             paguSebelumDisplay = STATE.currentUserData.Pagu_Anggaran || 0; 
+        } else {
+             // Jika Direktorat Mode Filter, paguSebelumDisplay tidak relevan, biarkan 0 atau gunakan total bruto
+             paguSebelumDisplay = totalDiajukanOverall; // Ganti dengan total bruto sebagai pembanding
         }
     }
 
@@ -5862,36 +6163,36 @@ function renderDashboardSummary(data, containerPrefix = 'dashboard-', chartPrefi
     
     // Label Dinamis
     const paguLabelEl = document.getElementById('dashboard-pagu-label');
-    if(paguLabelEl) paguLabelEl.textContent = "Status Anggaran (" + activeLabel + ")";
+    if(paguLabelEl) paguLabelEl.textContent = "Status Anggaran (" + activeLabel + ") - BUDGET BERSIH";
 
     // Kartu Pagu
     // Label: Pagu Sebelum (Awal/Lama)
     const paguAwalEl = document.getElementById('dashboard-total-pagu-awal');
     if (paguAwalEl) {
-        paguAwalEl.parentElement.innerHTML = `Pagu Sebelum: <strong id="dashboard-total-pagu-awal">Rp ${paguSebelumDisplay.toLocaleString('id-ID')}</strong>`;
+        paguAwalEl.parentElement.innerHTML = `Pagu Ceiling/Awal: <strong id="dashboard-total-pagu-awal">Rp ${paguSebelumDisplay.toLocaleString('id-ID')}</strong>`;
     }
 
     // Label: Pagu Sekarang (Aktif)
     const paguPerubahanEl = document.getElementById('dashboard-total-pagu-perubahan');
     if (paguPerubahanEl) {
         // activeLabel sekarang sudah aman digunakan di sini
-        paguPerubahanEl.parentElement.innerHTML = `Pagu Aktif (${activeLabel}): <strong id="dashboard-total-pagu-perubahan">Rp ${paguSekarangDisplay.toLocaleString('id-ID')}</strong>`;
+        paguPerubahanEl.parentElement.innerHTML = `Pagu Diterima Bersih (${activeLabel}): <strong id="dashboard-total-pagu-perubahan">Rp ${paguSekarangDisplay.toLocaleString('id-ID')}</strong>`;
     }
 
     // Update Angka Utama Pagu Card (Total Pagu Sekarang)
     const totalPaguTotalEl = document.getElementById(`${containerPrefix}total-pagu-total`);
-    if (totalPaguTotalEl) totalPaguTotalEl.textContent = 'Rp ' + paguSekarangDisplay.toLocaleString('id-ID');
+    if (totalPaguTotalEl) totalPaguTotalEl.textContent = 'Rp ' + paguSekarangDisplay.toLocaleString('id-ID'); // Pagu Bersih
 
     // Kartu Lainnya
     const totalDiajukanTotalEl = document.getElementById(`${containerPrefix}total-diajukan-total`);
-    if (totalDiajukanTotalEl) totalDiajukanTotalEl.textContent = 'Rp ' + totalDiajukanOverall.toLocaleString('id-ID'); 
+    if (totalDiajukanTotalEl) totalDiajukanTotalEl.textContent = 'Rp ' + totalDiajukanOverall.toLocaleString('id-ID'); // Total Bruto
     
     // Sembunyikan breakdown Awal/Perubahan di kartu Diajukan (karena kita hanya lihat aktif)
     const diajukanBreakdown = document.getElementById('dashboard-diajukan-breakdown');
     if(diajukanBreakdown) diajukanBreakdown.style.display = 'none';
 
     const totalDiterimaTotalEl = document.getElementById(`${containerPrefix}total-diterima-total`);
-    if (totalDiterimaTotalEl) totalDiterimaTotalEl.textContent = 'Rp ' + paguSekarangDisplay.toLocaleString('id-ID');
+    if (totalDiterimaTotalEl) totalDiterimaTotalEl.textContent = 'Rp ' + paguSekarangDisplay.toLocaleString('id-ID'); // Pagu Bersih
     
     // Hide breakdown diterima
     const diterimaBreakdown = document.getElementById('dashboard-diterima-breakdown');
@@ -5903,7 +6204,7 @@ function renderDashboardSummary(data, containerPrefix = 'dashboard-', chartPrefi
     if(totalRPDEl) totalRPDEl.textContent = 'Rp ' + totalRPD.toLocaleString('id-ID'); 
     if(totalRealisasiEl) totalRealisasiEl.textContent = 'Rp ' + totalRealisasi.toLocaleString('id-ID'); 
 
-    // Chart & Progress
+    // Chart & Progress (menggunakan Total RPD sebagai basis)
     setupChart(`${chartPrefix}RPDvsRealisasi`, 'bar', { 
         labels: RPD_MONTHS, 
         datasets: [
@@ -5976,10 +6277,10 @@ function renderDirektoratDashboard(summaryData) {
         ];
 
         const paguAwal = Number(item.pagu_awal_ceiling) || 0;
-        const paguSekarang = Number(item.total_diterima_final_bersih) || 0;
+        const paguSekarang = Number(item.total_diterima_final_bersih) || 0; // Budget Bersih Final
         const totalRealisasi = Number(item.total_realisasi_overall) || 0;
         const totalRPDCommitment = Number(item.total_rpd_commitment) || 0;
-        const totalDiterimaAwalBersih = Number(item.total_diterima_awal_bersih) || 0;
+        const totalDiterimaAwalBersih = Number(item.total_diterima_awal_bersih) || 0; // Budget Bersih Awal
         
         const Sisa_Belum_RPD = paguSekarang - totalRPDCommitment;
         const Sisa_Belum_Realisasi = totalRPDCommitment - totalRealisasi;
@@ -6041,12 +6342,12 @@ function renderDirektoratSummaryTable(summaryData) {
                         <th colspan="4" class="text-center">Pagu & RPD Anggaran (Rp)</th>
                         <th colspan="12" class="text-center">Realisasi (Rp)</th>
                         <th rowspan="2" class="align-middle text-end" style="min-width: 130px;">Total Realisasi (Rp)</th>
-                        <th rowspan="2" class="align-middle text-center" style="min-width: 100px;">% Realisasi</th>
+                        <th rowspan="2" class="align-middle text-center" style="min-width: 100px;">% Realisasi (vs Pagu Bersih)</th>
                     </tr>
                     <tr>
                         <th class="text-end" style="min-width: 130px;">Pagu Awal (Ceiling)</th>
-                        <th class="text-end" style="min-width: 130px;">Pagu Sekarang (Diterima)</th>
-                        <th class="text-end" style="min-width: 100px;">Selisih Pagu</th>
+                        <th class="text-end" style="min-width: 130px;">Pagu Sekarang (Bersih)</th>
+                        <th class="text-end" style="min-width: 100px;">Selisih Pagu Bersih</th>
                         <th class="text-end" style="min-width: 130px;">Total RPD</th>
                         <th class="text-end">TW 1</th><th class="text-center">%</th>
                         <th class="text-end">TW 2</th><th class="text-center">%</th>
@@ -6062,9 +6363,9 @@ function renderDirektoratSummaryTable(summaryData) {
     // PERBAIKAN DI SINI: Menambahkan Total_RPD ke inisialisasi object
     let grandTotals = {
         Pagu_Awal: 0, 
-        Pagu_Sekarang: 0, 
+        Pagu_Sekarang: 0, // Pagu Bersih
         Selisih_Pagu: 0, 
-        Total_RPD: 0,         // <-- SEBELUMNYA HILANG, MENYEBABKAN ERROR
+        Total_RPD: 0,
         Total_Realisasi: 0,
         Realisasi_TW1: 0, 
         Realisasi_TW2: 0, 
@@ -6083,6 +6384,7 @@ function renderDirektoratSummaryTable(summaryData) {
             grandTotals[key] += (Number(item[key]) || 0);
         });
 
+        // Persentase Realisasi dihitung terhadap Pagu Sekarang (Bersih)
         const percentage = item.Pagu_Sekarang > 0 ? ((item.Total_Realisasi / item.Pagu_Sekarang) * 100) : 0;
         const percentageText = percentage.toFixed(1);
         const progressColor = percentage >= 90 ? 'bg-success' : (percentage >= 70 ? 'bg-warning' : 'bg-danger');
@@ -6181,11 +6483,11 @@ function renderProdiStatusCards(summaryData) {
           const prodiColor = getColorForProdi(item.ID_Prodi);
           
           // Field Mapping dari recalculateProdiSummary:
-          // Pagu_Sebelum_Bersih (total_diterima_awal_bersih) -> Baseline sebelumnya
-          // Pagu_Sekarang (total_diterima_final_bersih) -> Aktif Sekarang
+          // Pagu_Sebelum_Bersih (total_diterima_awal_bersih) -> Budget Bersih Baseline sebelumnya
+          // Pagu_Sekarang (total_diterima_final_bersih) -> Budget Bersih Aktif Sekarang
           
           const paguSebelum = item.Pagu_Sebelum_Bersih; 
-          const paguSekarang = item.Pagu_Sekarang; 
+          const paguSekarang = item.Pagu_Sekarang; // Budget Bersih
           
           // Selisih = Sekarang - Sebelum
           const selisih = paguSekarang - paguSebelum;
@@ -6198,6 +6500,7 @@ function renderProdiStatusCards(summaryData) {
           const rpdSisaClass = sisaBelumRPD < 0 ? 'text-danger' : 'text-white'; 
           const realisasiSisaClass = sisaBelumRealisasi < 0 ? 'text-danger' : 'text-white';
 
+          // Persentase Realisasi terhadap Pagu Bersih Saat Ini
           const realisasiPercent = paguSekarang > 0 
               ? ((totalRealisasi / paguSekarang) * 100).toFixed(1)
               : '0.0';
@@ -6210,12 +6513,12 @@ function renderProdiStatusCards(summaryData) {
                     <div class="row g-2">
                         
                         <div class="col-12 border-bottom border-light opacity-50 pb-2">
-                            <span class="sub-metric">Pagu Sebelum</span>
+                            <span class="sub-metric">Pagu Bersih Sebelum</span>
                             <span class="metric-value d-block">Rp ${paguSebelum.toLocaleString('id-ID')}</span>
                         </div>
 
                         <div class="col-12 border-bottom border-light opacity-50 pb-2">
-                            <span class="sub-metric">Pagu Aktif (Sekarang)</span>
+                            <span class="sub-metric">Pagu Aktif (Bersih)</span>
                             <div class="d-flex justify-content-between align-items-baseline">
                                 <span class="metric-value">Rp ${paguSekarang.toLocaleString('id-ID')}</span>
                                 <span class="badge ${selisihClass}" style="background-color: rgba(255,255,255,0.3); font-size: 0.75em;" title="Selisih">
@@ -6870,9 +7173,6 @@ if (tabLogAktivitas) {
           // Kita gunakan .neq('id', 0) atau .neq('action', 'x') untuk memilih semua baris.
           // Asumsi: Kolom 'id' adalah Primary Key (int8) di Supabase.
           
-          // Opsi A: Jika tabel activityLog punya kolom 'id' (auto increment)
-          // const { error } = await sb.from('activityLog').delete().neq('id', 0);
-
           // Opsi B (Lebih aman jika struktur ID tidak pasti): Hapus yang userId-nya tidak kosong
           const { error } = await sb.from('activityLog').delete().neq('userId', 'system_placeholder_impossible_string');
 
@@ -7615,8 +7915,8 @@ window.hitungTotalAjuan = function(prefix = '') {
 
     // Bersihkan nilai input dari titik/koma (jika ada format sebelumnya)
     // Asumsi input type="number" biasanya mengembalikan string polos, tapi untuk keamanan kita parsing.
-    let valJumlah = parseFloat(elJumlah.value.replace(/\./g, '').replace(',', '.')) || 0;
-    let valHarga = parseFloat(elHarga.value.replace(/\./g, '').replace(',', '.')) || 0;
+    let valJumlah = parseFloat(elJumlah.value.replace(/\./g, '').replace(/,/g, '.')) || 0;
+    let valHarga = parseFloat(elHarga.value.replace(/\./g, '').replace(/,/g, '.')) || 0;
     // Hitung Total
     let total = valJumlah * valHarga;
 
@@ -7799,5 +8099,3 @@ window.refreshProdiData = async function() {
 };
 
 });
-/* --- END PATCH --- */
-    
